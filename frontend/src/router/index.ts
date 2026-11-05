@@ -28,6 +28,12 @@ const router = createRouter({
           meta: { title: "平台管理" },
         },
         {
+          path: "registry",
+          name: "registry",
+          component: () => import("../views/Registry.vue"),
+          meta: { title: "插件目录" },
+        },
+        {
           path: "tasks",
           name: "tasks",
           component: () => import("../views/Tasks.vue"),

@@ -114,6 +114,7 @@ flowchart LR
 | `backend/app/worker/` | Worker 入口：轮询领取 PENDING 任务，调用插件执行并 finalize |
 | `backend/app/browser_worker/` | Browser Worker 入口：领取 `needs_browser` 执行，共享 Chromium + 按账号 Context / storage state，调用插件执行并 finalize |
 | `backend/app/notifications/` | 通知模块：Bark / Gotify / Webhook 渠道与事件开关 |
+| `backend/app/services/registry_service.py` | 可信插件目录（Registry）：目录 API + 安装状态比对；不做自动安装、不执行第三方代码 |
 | `sdk/dailykeeper_sdk/` | 插件 SDK：PlatformPlugin 基类、TaskContext、TaskResult、注册表 |
 | `plugins/` | 官方插件包：demo / newapi / mteam / nexusphp，经 entry points 注册 |
 

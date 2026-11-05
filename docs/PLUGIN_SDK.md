@@ -264,3 +264,49 @@ M-Team 提供 API Key 方式接入（站点控制台 → 实验室 → 存取令
 - **可信插件白名单**：V1 只加载随镜像分发的官方插件；要接入新平台，将插件放入 `plugins/` 并加入镜像构建（`deploy/Dockerfile.*` 的 `pip install` 列表）。
 - **第三方插件本质是可执行代码**：普通 Python 插件不是安全沙箱，安装第三方插件等于在该机器上运行任意代码。请按 plan.md §11.3 安全设计审慎评估来源与行为，V1 不提供插件市场，后续再研究独立容器隔离。
 - 插件不得访问其他插件的认证信息；不得绕过平台安全措施（验证码、二次验证）；只执行用户授权且平台规则允许的任务。
+
+## 十三、插件目录（Registry）
+
+Dashboard 的「插件目录」页与 `GET /api/registry` 接口读取一份**可信白名单目录**，展示官方插件清单及本地安装状态。目录数据是静态 JSON，不含任何可执行逻辑。
+
+### 目录文件位置与 schema
+
+文件位置：`backend/app/resources/registry.json`，由 `backend/app/services/registry_service.py` 读取（文件缺失或格式异常时记录 warning 并返回空目录）。
+
+顶层结构：
+
+```json
+{
+  "schema_version": 1,
+  "updated_at": "2026-11-06",
+  "plugins": [ ... ]
+}
+```
+
+每个插件条目的字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `plugin_id` | string | 插件标识，与 `PlatformPlugin.plugin_id` 及 `platforms` 表主键一致 |
+| `package` | string | PyPI 风格包名（如 `dailykeeper-plugin-mteam`） |
+| `name` | string | 展示名称 |
+| `version` | string | 目录收录的版本号，应与插件 `pyproject.toml` 的 `version` 一致 |
+| `description` | string | 插件描述（复制自插件声明） |
+| `author` | string | 维护方，官方插件为 `DailyKeeper Official` |
+| `trusted` | bool | 是否为官方信任插件；V1 目录中全部为 `true` |
+| `homepage` | string | 插件源码目录的 GitHub 链接 |
+| `capabilities` | string[] | 插件 `task_definitions` 的任务名清单 |
+| `requires_browser` | bool | 任一任务声明 `requires_browser=True` 时为 `true` |
+| `install` | string | 人工安装命令（如 `pip install -e plugins/mteam（本仓库内）`） |
+
+### 如何把插件加入目录
+
+通过 PR 修改 `backend/app/resources/registry.json`：在 `plugins` 数组中新增条目，填齐上表字段（`version` / `description` / `capabilities` / `requires_browser` 必须与插件源码一致，不得臆造）。新增插件同时需满足「发布规范」一节：插件包放入 `plugins/` 并加入镜像构建的 `pip install` 列表。
+
+### 安装状态比对规则
+
+`registry_catalog` 将目录条目与 `platforms` 表（已加载插件）按 `plugin_id` 合并，附 `installed` / `installed_version` / `upgradable` 三个字段。版本比较按**逐段数字比较**：`"0.10.0"` 解析为 `(0, 10, 0)`，因此 `"0.10.0" > "0.9.0"`；非数字段容错按 `0` 处理。`upgradable = 目录版本 > 已安装版本`。
+
+### 安全模型重申
+
+插件目录是**白名单目录**，不是插件市场：V1 不下载、不自动安装、不执行目录之外的任何代码，安装/升级需管理员在服务器环境手动执行 `install` 命令后重启服务。

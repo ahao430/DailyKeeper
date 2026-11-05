@@ -41,6 +41,24 @@ export interface PluginManifest {
   enabled: boolean;
 }
 
+/** GET /api/registry item: trusted catalog entry merged with install status. */
+export interface RegistryEntry {
+  plugin_id: string;
+  package: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  trusted: boolean;
+  homepage: string;
+  capabilities: string[];
+  requires_browser: boolean;
+  install: string;
+  installed: boolean;
+  installed_version: string | null;
+  upgradable: boolean;
+}
+
 /** GET/POST/PUT /api/platforms item. */
 export interface PlatformInstance {
   id: number;

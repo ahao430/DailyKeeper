@@ -25,6 +25,7 @@ import type {
   OkResponse,
   PlatformInstance,
   PluginManifest,
+  RegistryEntry,
   ResourceSnapshot,
   ResourceSummary,
   RunNowResponse,
@@ -68,6 +69,14 @@ export function changePassword(payload: ChangePasswordRequest): Promise<OkRespon
 
 export function listPlugins(): Promise<PluginManifest[]> {
   return unwrap(client.get<PluginManifest[]>("/plugins"));
+}
+
+// ---------------------------------------------------------------------------
+// Registry (trusted plugin catalog)
+// ---------------------------------------------------------------------------
+
+export function listRegistry(): Promise<RegistryEntry[]> {
+  return unwrap(client.get<RegistryEntry[]>("/registry"));
 }
 
 // ---------------------------------------------------------------------------

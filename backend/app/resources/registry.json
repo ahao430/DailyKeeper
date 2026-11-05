@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-11-06",
+  "plugins": [
+    {
+      "plugin_id": "demo",
+      "package": "dailykeeper-plugin-demo",
+      "name": "演示平台",
+      "version": "0.1.0",
+      "description": "模拟平台插件：验证任务引擎闭环（调度→执行→去重→结果→通知），测试用",
+      "author": "DailyKeeper Official",
+      "trusted": true,
+      "homepage": "https://github.com/ahao430/DailyKeeper/tree/main/plugins/demo",
+      "capabilities": ["daily_checkin", "get_user_info", "browser_probe", "agent_probe"],
+      "requires_browser": true,
+      "install": "pip install -e plugins/demo（本仓库内）"
+    },
+    {
+      "plugin_id": "newapi",
+      "package": "dailykeeper-plugin-newapi",
+      "name": "NewAPI 中转站",
+      "version": "0.1.0",
+      "description": "NewAPI/OneAPI 系中转站：每日签到、用户信息与余额查询（接口路径按站点可配置）",
+      "author": "DailyKeeper Official",
+      "trusted": true,
+      "homepage": "https://github.com/ahao430/DailyKeeper/tree/main/plugins/newapi",
+      "capabilities": ["daily_checkin", "get_user_info"],
+      "requires_browser": false,
+      "install": "pip install -e plugins/newapi（本仓库内）"
+    },
+    {
+      "plugin_id": "mteam",
+      "package": "dailykeeper-plugin-mteam",
+      "name": "M-Team",
+      "version": "0.2.0",
+      "description": "M-Team（馒头）PT 站：API Key 查询用户信息与魔力；浏览器登录保活（官方 API 访问不计入登录活跃）",
+      "author": "DailyKeeper Official",
+      "trusted": true,
+      "homepage": "https://github.com/ahao430/DailyKeeper/tree/main/plugins/mteam",
+      "capabilities": ["get_user_info", "daily_checkin"],
+      "requires_browser": true,
+      "install": "pip install -e plugins/mteam（本仓库内）"
+    },
+    {
+      "plugin_id": "nexusphp",
+      "package": "dailykeeper-plugin-nexusphp",
+      "name": "NexusPHP 站点",
+      "version": "0.1.0",
+      "description": "NexusPHP 论坛/PT 站点：Cookie 每日签到（attendance.php），成功/已签/登录失效标记可配置",
+      "author": "DailyKeeper Official",
+      "trusted": true,
+      "homepage": "https://github.com/ahao430/DailyKeeper/tree/main/plugins/nexusphp",
+      "capabilities": ["daily_checkin"],
+      "requires_browser": false,
+      "install": "pip install -e plugins/nexusphp（本仓库内）"
+    }
+  ]
+}

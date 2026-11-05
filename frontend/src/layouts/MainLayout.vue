@@ -14,6 +14,10 @@
           <el-icon><Platform /></el-icon>
           <span>平台管理</span>
         </el-menu-item>
+        <el-menu-item index="/registry">
+          <el-icon><Box /></el-icon>
+          <span>插件目录</span>
+        </el-menu-item>
         <el-menu-item index="/tasks">
           <el-icon><AlarmClock /></el-icon>
           <span>任务中心</span>
@@ -57,6 +61,7 @@ import { computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   AlarmClock,
+  Box,
   Calendar,
   DataAnalysis,
   Document,
