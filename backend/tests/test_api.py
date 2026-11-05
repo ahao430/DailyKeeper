@@ -615,3 +615,52 @@ async def test_password_change_roundtrip(client, auth_headers):
         "/api/auth/login", json={"username": "admin", "password": "admin123"}
     )
     assert final.status_code == 200
+
+
+# ---------- 定时任务更新与删除 ----------
+
+
+async def test_update_scheduled_task(client, auth_headers):
+    account = await create_demo_account(client, auth_headers)
+    task = await _create_task(client, auth_headers, account["id"])
+
+    resp = await client.put(
+        f"/api/scheduled-tasks/{task['id']}",
+        json={"time_of_day": "09:45"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["time_of_day"] == "09:45"
+    assert body["next_run_at"] is not None  # next_run_at 已重置并给出预览值
+
+
+async def test_update_scheduled_task_invalid_time(client, auth_headers):
+    account = await create_demo_account(client, auth_headers)
+    task = await _create_task(client, auth_headers, account["id"])
+
+    resp = await client.put(
+        f"/api/scheduled-tasks/{task['id']}",
+        json={"time_of_day": "25:00"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "无效时间格式，应为 HH:MM"
+
+
+async def test_delete_scheduled_task(client, auth_headers):
+    account = await create_demo_account(client, auth_headers)
+    task = await _create_task(client, auth_headers, account["id"])
+    task_id = task["id"]
+
+    resp = await client.delete(f"/api/scheduled-tasks/{task_id}", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+    listing = await client.get(
+        "/api/scheduled-tasks",
+        params={"account_id": account["id"]},
+        headers=auth_headers,
+    )
+    assert listing.status_code == 200
+    assert all(item["id"] != task_id for item in listing.json())

@@ -35,6 +35,7 @@ git clone git@github.com:ahao430/DailyKeeper.git
 cd DailyKeeper
 cp deploy/.env.example deploy/.env
 docker compose -f deploy/docker-compose.yml up -d --build
+# Dashboard: http://localhost:8080
 # Swagger UI: http://localhost:8000/docs
 ```
 
@@ -47,6 +48,10 @@ pip install -e sdk -e plugins/demo -e plugins/newapi -e plugins/mteam -e plugins
 uvicorn app.main:app --reload
 # Swagger UI: http://localhost:8000/docs
 # 默认管理员 admin / admin123，首次登录后请修改密码
+
+# 前端开发服务（新开终端）
+cd frontend && npm install && npm run dev
+# Dashboard: http://localhost:5173
 ```
 
 ## Project Structure

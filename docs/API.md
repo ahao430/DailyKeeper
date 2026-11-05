@@ -52,8 +52,8 @@
 | --- | --- | --- | --- |
 | GET | `/api/scheduled-tasks` | 需要 | 定时任务列表（支持按账号过滤） |
 | POST | `/api/scheduled-tasks` | 需要 | 创建定时任务（task_name 须在该平台插件的 task_definitions 中） |
-| PATCH | `/api/scheduled-tasks/{task_id}` | 需要 | 更新定时任务（时间/间隔/参数/启用） |
-| DELETE | `/api/scheduled-tasks/{task_id}` | 需要 | 删除定时任务 |
+| PUT | `/api/scheduled-tasks/{task_id}` | 需要 | 更新定时任务（时间/间隔/参数/启用，next_run_at 重置重算） |
+| DELETE | `/api/scheduled-tasks/{task_id}` | 需要 | 删除定时任务（执行历史保留，关联引用置空） |
 | POST | `/api/scheduled-tasks/{task_id}/run-now` | 需要 | 立即执行一次（创建 execution，遵循业务日期去重） |
 
 ### 执行记录

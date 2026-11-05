@@ -1,0 +1,6 @@
+# 构建上下文精简（所有 Dockerfile 均以仓库根为 context）
+.git
+.venv
+frontend/dist
+**/node_modules
+**/__pycache__

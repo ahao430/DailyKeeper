@@ -6,14 +6,14 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dailykeeper_sdk.registry import plugin_registry
 
 from app.api.deps import get_current_admin, get_db
 from app.core.timeutil import next_occurrence, now_utc, parse_hhmm
-from app.models import Account, ScheduledTask
+from app.models import Account, ScheduledTask, TaskExecution
 from app.services.task_engine import create_execution
 
 router = APIRouter(
@@ -157,3 +157,66 @@ async def run_task_now(task_id: int, session: AsyncSession = Depends(get_db)) ->
             "message": "今日已存在待执行/进行中/已成功的执行记录，跳过重复创建",
         }
     return {"created": True, "execution_id": execution.id, "message": "已加入执行队列"}
+
+
+class UpdateScheduledTaskRequest(BaseModel):
+    time_of_day: str | None = None
+    interval_days: int | None = None
+    params: dict | None = None
+    enabled: bool | None = None
+
+
+async def _load_task_with_account(
+    task_id: int, session: AsyncSession
+) -> tuple[ScheduledTask, Account]:
+    task = await session.get(ScheduledTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="定时任务不存在")
+    account = await session.get(Account, task.account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    return task, account
+
+
+@router.put("/{task_id}")
+async def update_scheduled_task(
+    task_id: int, payload: UpdateScheduledTaskRequest, session: AsyncSession = Depends(get_db)
+) -> dict:
+    """Update schedule fields; next_run_at is reset so the scheduler recomputes."""
+    task, account = await _load_task_with_account(task_id, session)
+
+    if payload.time_of_day is not None:
+        try:
+            parse_hhmm(payload.time_of_day)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        task.time_of_day = payload.time_of_day
+    if payload.interval_days is not None:
+        if payload.interval_days < 1:
+            raise HTTPException(status_code=422, detail="执行周期必须 ≥ 1 天")
+        task.interval_days = payload.interval_days
+    if payload.params is not None:
+        task.params = payload.params
+    if payload.enabled is not None:
+        task.enabled = payload.enabled
+
+    task.next_run_at = None  # 让调度器按新配置重新计算
+    await session.commit()
+    await session.refresh(task)
+    return _task_detail(task, account)
+
+
+@router.delete("/{task_id}")
+async def delete_scheduled_task(task_id: int, session: AsyncSession = Depends(get_db)) -> dict:
+    """Delete the schedule; execution history is preserved (task reference nulled)."""
+    task, _account = await _load_task_with_account(task_id, session)
+
+    await session.execute(
+        update(TaskExecution)
+        .where(TaskExecution.scheduled_task_id == task_id)
+        .values(scheduled_task_id=None)
+        .execution_options(synchronize_session=False)
+    )
+    await session.delete(task)
+    await session.commit()
+    return {"ok": True}
