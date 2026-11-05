@@ -13,6 +13,7 @@ import type {
   CheckResponse,
   CreateAccountRequest,
   CreateAgentRequest,
+  CreateUserRequest,
   CreatePlatformRequest,
   CreateScheduledTaskRequest,
   Execution,
@@ -26,6 +27,7 @@ import type {
   PlatformInstance,
   PluginManifest,
   RegistryEntry,
+  ResetUserPasswordRequest,
   ResourceSnapshot,
   ResourceSummary,
   RunNowResponse,
@@ -37,6 +39,8 @@ import type {
   UpdateAccountRequest,
   UpdatePlatformRequest,
   UpdateScheduledTaskRequest,
+  UpdateUserRequest,
+  UserItem,
 } from "./types";
 
 function unwrap<T>(promise: Promise<{ data: T }>): Promise<T> {
@@ -61,6 +65,31 @@ export function getMe(): Promise<MeResponse> {
 
 export function changePassword(payload: ChangePasswordRequest): Promise<OkResponse> {
   return unwrap(client.put<OkResponse>("/auth/password", payload));
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+export function listUsers(): Promise<UserItem[]> {
+  return unwrap(client.get<UserItem[]>("/users"));
+}
+
+export function createUser(payload: CreateUserRequest): Promise<UserItem> {
+  return unwrap(client.post<UserItem>("/users", payload));
+}
+
+export function updateUser(userId: number, payload: UpdateUserRequest): Promise<UserItem> {
+  return unwrap(client.put<UserItem>(`/users/${userId}`, payload));
+}
+
+export function resetUserPassword(userId: number, newPassword: string): Promise<OkResponse> {
+  const payload: ResetUserPasswordRequest = { new_password: newPassword };
+  return unwrap(client.put<OkResponse>(`/users/${userId}/password`, payload));
+}
+
+export function deleteUser(userId: number): Promise<OkResponse> {
+  return unwrap(client.delete<OkResponse>(`/users/${userId}`));
 }
 
 // ---------------------------------------------------------------------------

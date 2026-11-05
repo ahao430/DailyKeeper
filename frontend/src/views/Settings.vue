@@ -66,6 +66,70 @@
       </div>
     </el-card>
 
+    <!-- 用户管理 -->
+    <el-card shadow="never" class="settings-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">用户管理</span>
+          <div class="user-actions">
+            <el-button type="primary" :icon="Plus" @click="openCreateUser">新增用户</el-button>
+            <el-tooltip content="刷新" placement="top">
+              <el-button :icon="Refresh" circle :loading="usersLoading" @click="loadUsers" />
+            </el-tooltip>
+          </div>
+        </div>
+      </template>
+
+      <el-table v-loading="usersLoading" :data="users" row-key="id">
+        <el-table-column prop="username" label="用户名" min-width="140" show-overflow-tooltip />
+        <el-table-column label="显示名" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.display_name || "-" }}</template>
+        </el-table-column>
+        <el-table-column label="角色" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.role === 'admin' ? 'danger' : 'info'" size="small">
+              {{ roleLabel(row.role) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="启用" width="90" align="center">
+          <template #default="{ row }">
+            <el-tooltip
+              content="不能停用自己的账号"
+              placement="top"
+              :disabled="row.username !== currentUsername"
+            >
+              <el-switch
+                :model-value="row.enabled"
+                :disabled="row.username === currentUsername"
+                :loading="togglingId === row.id"
+                @change="toggleUserEnabled(row, $event)"
+              />
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="最后登录" min-width="160">
+          <template #default="{ row }">{{ formatTime(row.last_login_at) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openResetPassword(row)">重置密码</el-button>
+            <el-button
+              v-if="row.username !== currentUsername"
+              link
+              type="danger"
+              @click="removeUser(row)"
+            >
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="暂无用户" :image-size="80" />
+        </template>
+      </el-table>
+    </el-card>
+
     <!-- 修改密码 -->
     <el-card shadow="never" class="settings-card">
       <template #header>
@@ -119,22 +183,102 @@
         <el-button type="primary" @click="submitChannel">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 新增用户 -->
+    <el-dialog v-model="createUserDialogVisible" title="新增用户" width="520px" destroy-on-close>
+      <el-form
+        ref="createUserFormRef"
+        :model="createUserForm"
+        :rules="createUserRules"
+        label-width="100px"
+      >
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="createUserForm.username" placeholder="登录用户名" />
+        </el-form-item>
+        <el-form-item label="显示名" prop="display_name">
+          <el-input v-model="createUserForm.display_name" placeholder="选填，便于识别的名称" />
+        </el-form-item>
+        <el-form-item label="初始密码" prop="password">
+          <el-input
+            v-model="createUserForm.password"
+            type="password"
+            show-password
+            placeholder="至少 6 位"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createUserDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="creatingUser" @click="submitCreateUser">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 重置密码 -->
+    <el-dialog
+      v-model="resetPasswordDialogVisible"
+      :title="resetTarget ? `重置密码 - ${resetTarget.username}` : '重置密码'"
+      width="480px"
+      destroy-on-close
+    >
+      <el-form
+        ref="resetPasswordFormRef"
+        :model="resetPasswordForm"
+        :rules="resetPasswordRules"
+        label-width="100px"
+      >
+        <el-form-item label="新密码" prop="new_password">
+          <el-input
+            v-model="resetPasswordForm.new_password"
+            type="password"
+            show-password
+            placeholder="至少 6 位"
+          />
+        </el-form-item>
+        <el-form-item label="确认新密码" prop="confirm_password">
+          <el-input
+            v-model="resetPasswordForm.confirm_password"
+            type="password"
+            show-password
+            placeholder="再次输入新密码"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="resettingPassword" @click="submitResetPassword">
+          重置
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { ElMessage, type FormInstance, type FormRules } from "element-plus";
-import { Plus } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
+import { Plus, Refresh } from "@element-plus/icons-vue";
+import dayjs from "dayjs";
 import DynamicForm, { buildFormDefaults } from "../components/DynamicForm.vue";
 import {
   changePassword,
+  createUser,
+  deleteUser,
+  getMe,
   getSystemSettings,
+  listUsers,
+  resetUserPassword,
   testNotification,
   updateNotificationSettings,
+  updateUser,
 } from "../api";
 import { extractErrorMessage } from "../api/client";
-import type { FieldDef, NotificationChannelSpec } from "../api/types";
+import { useAuth } from "../composables/auth";
+import type {
+  CreateUserRequest,
+  FieldDef,
+  NotificationChannelSpec,
+  UserItem,
+} from "../api/types";
 
 // ---------------------------------------------------------------------------
 // Notification settings
@@ -341,6 +485,192 @@ async function submitChannel(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// User management
+// ---------------------------------------------------------------------------
+
+const { username: currentUsername } = useAuth();
+
+const usersLoading = ref(false);
+const users = ref<UserItem[]>([]);
+const togglingId = ref<number | null>(null);
+
+async function loadUsers(): Promise<void> {
+  usersLoading.value = true;
+  try {
+    users.value = await listUsers();
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, "加载用户列表失败"));
+  } finally {
+    usersLoading.value = false;
+  }
+}
+
+/** 硬刷新直达设置页时 MainLayout 的 /me 可能尚未返回，这里兜底拉一次当前用户名。 */
+async function ensureCurrentUser(): Promise<void> {
+  if (currentUsername.value) {
+    return;
+  }
+  try {
+    const me = await getMe();
+    currentUsername.value = me.username;
+  } catch {
+    // 失败仅影响“自己”行的 UI 保护（开关禁用/隐藏删除），后端仍会拦截对应请求
+  }
+}
+
+function roleLabel(role: string): string {
+  return role === "admin" ? "管理员" : "普通用户";
+}
+
+function formatTime(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm:ss") : value;
+}
+
+async function toggleUserEnabled(row: UserItem, value: string | number | boolean): Promise<void> {
+  const enabled = Boolean(value);
+  togglingId.value = row.id;
+  try {
+    const updated = await updateUser(row.id, { enabled });
+    row.enabled = updated.enabled;
+    ElMessage.success(enabled ? `已启用用户「${row.username}」` : `已停用用户「${row.username}」`);
+  } catch (error) {
+    // switch 绑定 row.enabled，未提交修改即自动还原
+    ElMessage.error(extractErrorMessage(error, "更新用户状态失败"));
+  } finally {
+    togglingId.value = null;
+  }
+}
+
+// 新增用户 dialog
+const createUserDialogVisible = ref(false);
+const creatingUser = ref(false);
+const createUserFormRef = ref<FormInstance>();
+const createUserForm = reactive({
+  username: "",
+  display_name: "",
+  password: "",
+});
+
+const createUserRules: FormRules = {
+  username: [{ required: true, message: "请输入用户名", trigger: "blur" }],
+  password: [
+    { required: true, message: "请输入初始密码", trigger: "blur" },
+    { min: 6, message: "密码至少 6 位", trigger: "blur" },
+  ],
+};
+
+function openCreateUser(): void {
+  createUserForm.username = "";
+  createUserForm.display_name = "";
+  createUserForm.password = "";
+  createUserDialogVisible.value = true;
+}
+
+async function submitCreateUser(): Promise<void> {
+  const valid = await validateForm(createUserFormRef.value);
+  if (!valid) {
+    return;
+  }
+  creatingUser.value = true;
+  try {
+    const payload: CreateUserRequest = {
+      username: createUserForm.username.trim(),
+      password: createUserForm.password,
+    };
+    const displayName = createUserForm.display_name.trim();
+    if (displayName) {
+      payload.display_name = displayName;
+    }
+    await createUser(payload);
+    createUserDialogVisible.value = false;
+    ElMessage.success("用户已创建");
+    await loadUsers();
+  } catch (error) {
+    // 用户名重复等后端校验失败时展示 detail（如“用户名已存在”）
+    ElMessage.error(extractErrorMessage(error, "创建用户失败"));
+  } finally {
+    creatingUser.value = false;
+  }
+}
+
+// 重置密码 dialog
+const resetPasswordDialogVisible = ref(false);
+const resetTarget = ref<UserItem | null>(null);
+const resettingPassword = ref(false);
+const resetPasswordFormRef = ref<FormInstance>();
+const resetPasswordForm = reactive({
+  new_password: "",
+  confirm_password: "",
+});
+
+const resetPasswordRules: FormRules = {
+  new_password: [
+    { required: true, message: "请输入新密码", trigger: "blur" },
+    { min: 6, message: "新密码至少 6 位", trigger: "blur" },
+  ],
+  confirm_password: [
+    { required: true, message: "请再次输入新密码", trigger: "blur" },
+    {
+      validator: (_rule, value: string, callback) => {
+        if (value !== resetPasswordForm.new_password) {
+          callback(new Error("两次输入的密码不一致"));
+        } else {
+          callback();
+        }
+      },
+      trigger: "blur",
+    },
+  ],
+};
+
+function openResetPassword(row: UserItem): void {
+  resetTarget.value = row;
+  resetPasswordForm.new_password = "";
+  resetPasswordForm.confirm_password = "";
+  resetPasswordDialogVisible.value = true;
+}
+
+async function submitResetPassword(): Promise<void> {
+  const valid = await validateForm(resetPasswordFormRef.value);
+  if (!valid || !resetTarget.value) {
+    return;
+  }
+  resettingPassword.value = true;
+  try {
+    await resetUserPassword(resetTarget.value.id, resetPasswordForm.new_password);
+    resetPasswordDialogVisible.value = false;
+    ElMessage.success(`已重置用户「${resetTarget.value.username}」的密码`);
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, "重置密码失败"));
+  } finally {
+    resettingPassword.value = false;
+  }
+}
+
+// 删除用户
+async function removeUser(row: UserItem): Promise<void> {
+  const confirmed = await ElMessageBox.confirm(
+    `确定删除用户 ${row.username}？`,
+    "删除用户",
+    { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" },
+  ).catch(() => false);
+  if (!confirmed) {
+    return;
+  }
+  try {
+    await deleteUser(row.id);
+    ElMessage.success("用户已删除");
+    await loadUsers();
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, "删除用户失败"));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Password form
 // ---------------------------------------------------------------------------
 
@@ -411,7 +741,11 @@ async function validateForm(form: FormInstance | undefined): Promise<boolean> {
   }
 }
 
-onMounted(loadSettings);
+onMounted(() => {
+  void loadSettings();
+  void ensureCurrentUser();
+  void loadUsers();
+});
 </script>
 
 <style scoped>
@@ -431,6 +765,11 @@ onMounted(loadSettings);
 
 .card-title {
   font-weight: 600;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
 }
 
 .notify-enabled {

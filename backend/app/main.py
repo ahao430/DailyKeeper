@@ -9,11 +9,24 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import accounts, agent_api, agents, auth, executions, platforms, registry, resources, system, tasks
+from app.api import (
+    accounts,
+    agent_api,
+    agents,
+    auth,
+    executions,
+    platforms,
+    registry,
+    resources,
+    system,
+    tasks,
+    users,
+)
 from app.core.config import get_settings
 from app.core.database import dispose_engine, get_session_factory, init_engine
 from app.models.tables import Base
 from app.services.plugin_runtime import load_plugins
+from app.services.user_service import ensure_admin_user
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +42,7 @@ async def run_startup() -> None:
         conn = await session.connection()
         await conn.run_sync(lambda sync_conn: Base.metadata.create_all(bind=sync_conn))
         await session.commit()
+        await ensure_admin_user(session)  # 首次启动时播种/迁移管理员账号
         await load_plugins(session)  # 内部已 commit
 
     logging.basicConfig(
@@ -65,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(resources.router)
     app.include_router(system.router)
     app.include_router(registry.router)
+    app.include_router(users.router)
     app.include_router(agents.router)
     app.include_router(agent_api.router)
 

@@ -232,6 +232,8 @@ export interface BootstrapResponse {
 /** GET /api/auth/me. */
 export interface MeResponse {
   username: string;
+  display_name: string;
+  role: string;
 }
 
 /** Generic {ok: true} responses (password change, settings PUT, deletes). */
@@ -288,6 +290,17 @@ export interface AgentRotated {
   id: number;
   token: string;
   note: string;
+}
+
+/** GET/POST/PUT /api/users item. */
+export interface UserItem {
+  id: number;
+  username: string;
+  display_name: string;
+  role: string;
+  enabled: boolean;
+  last_login_at: string | null;
+  created_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -367,6 +380,21 @@ export interface UpdateScheduledTaskRequest {
 
 export interface CreateAgentRequest {
   name: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  display_name?: string;
+}
+
+export interface UpdateUserRequest {
+  display_name?: string;
+  enabled?: boolean;
+}
+
+export interface ResetUserPasswordRequest {
+  new_password: string;
 }
 
 export interface ListExecutionsParams {

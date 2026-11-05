@@ -2,7 +2,7 @@
 
 from app.models.tables import (
     Agent, Account, Credential, NotificationRecord, Platform, PlatformInstance,
-    ResourceSnapshot, ScheduledTask, SystemSetting, TaskExecution, TaskResultRecord,
+    ResourceSnapshot, ScheduledTask, SystemSetting, TaskExecution, TaskResultRecord, User,
     ACCOUNT_STATUS_ACTIVE, ACCOUNT_STATUS_AUTH_EXPIRED, ACCOUNT_STATUS_DISABLED,
 )
 
@@ -18,6 +18,7 @@ __all__ = [
     "SystemSetting",
     "TaskExecution",
     "TaskResultRecord",
+    "User",
     "ACCOUNT_STATUS_ACTIVE",
     "ACCOUNT_STATUS_AUTH_EXPIRED",
     "ACCOUNT_STATUS_DISABLED",

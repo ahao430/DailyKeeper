@@ -224,6 +224,24 @@ class SystemSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
 
+class User(TimestampMixin, Base):
+    """A management-console user (admin account).
+
+    ``password_hash`` stores a PBKDF2 hash; disabled users' JWTs stop
+    working immediately because tokens are resolved against this table.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    display_name: Mapped[str] = mapped_column(String(128), default="")
+    role: Mapped[str] = mapped_column(String(16), default="admin")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Agent(TimestampMixin, Base):
     """A registered worker agent (placeholder for a later phase)."""
 

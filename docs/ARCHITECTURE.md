@@ -146,7 +146,7 @@ flowchart LR
 - **凭据加密**：Cookie / 密码 / API Key 使用 AES-GCM 加密存储，密文带 `enc1:` 版本前缀；加密密钥来自 `DAILYKEEPER_SECRET_KEY`（或独立的 `DAILYKEEPER_ENCRYPTION_KEY`），支持密钥轮换。
 - **浏览器登录态文件**：browser worker 按账号持久化的 storage state（`browser_states/account-{id}.json`）包含 Cookie / localStorage，属于敏感数据，只落在 `data_dir` 数据卷内，不进入数据库、不出现在日志与 API 响应中。
 - **日志脱敏**：任务记录与日志不落明文凭据，错误信息经过滤后入库。
-- **管理端认证**：API 使用 JWT 管理员认证（`/api/auth/login`），`/healthz` 等探活端点公开。
+- **管理端认证**：API 使用 JWT 管理员认证（`/api/auth/login`），`/healthz` 等探活端点公开。管理端支持多用户（users 表，PBKDF2 口令哈希；启动时自动从环境变量/旧 admin_auth 设置迁移种子管理员；用户停用/删除后其 JWT 立即失效）。
 - **插件白名单**：V1 仅加载随镜像分发的官方插件（demo / newapi / mteam / nexusphp），即「可信插件白名单」；插件之间不共享认证信息。
 - **不绕过平台安全措施**：不自动处理验证码，不自动绕过二次验证，需要人工的场景统一进入 `NEEDS_ACTION`。
 

@@ -13,7 +13,7 @@ from dailykeeper_sdk.registry import plugin_registry
 from app.api.deps import get_current_admin, get_db
 from app.core.config import Settings, get_settings
 from app.core.timeutil import date_in_tz, now_utc
-from app.models import Account, Agent, PlatformInstance, ScheduledTask, SystemSetting, TaskExecution
+from app.models import Account, Agent, PlatformInstance, ScheduledTask, SystemSetting, TaskExecution, User
 from app.notifications import CHANNEL_TYPES
 from app.services.notification_service import (
     NOTIFICATION_SETTINGS_KEY,
@@ -71,6 +71,7 @@ async def system_info(session: AsyncSession = Depends(get_db)) -> dict:
     agents_online = await session.scalar(
         select(func.count()).select_from(Agent).where(Agent.status == "ONLINE")
     )
+    users = await session.scalar(select(func.count()).select_from(User))
 
     return {
         "app_name": settings.app_name,
@@ -85,6 +86,7 @@ async def system_info(session: AsyncSession = Depends(get_db)) -> dict:
         "executions_today": executions_today,
         "executions_today_success": executions_today_success,
         "agents_online": agents_online,
+        "users": users,
         "notifications_enabled": notifications.get("enabled", True),
         "scheduler_heartbeat": _heartbeat_info(
             heartbeat_row.value if heartbeat_row is not None else None, settings
