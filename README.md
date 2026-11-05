@@ -15,6 +15,7 @@ It brings account management, daily check-in service, scheduled tasks, task exec
 - **Extensible Plugin System** — Add new platforms and capabilities through a unified plugin SDK.
 - **Browser Automation** — Automate supported web workflows with Playwright via a dedicated browser worker.
 - **Local Agent** — Extend automation to local desktop applications via a pull-based local agent (`dk-agent`).
+- **MCP Server** — Expose check-in status, task triggering and resource balances to AI assistants via MCP (`dk-mcp`).
 - **Notifications** — Bark / Gotify / Webhook with per-event toggles.
 - **Self-hosted** — Deploy and manage your own automation service.
 
@@ -62,6 +63,7 @@ dailykeeper/
 ├── sdk/            # DailyKeeper SDK
 ├── plugins/        # DailyKeeper Plugins
 ├── local-agent/    # DailyKeeper Agent (phase 5, placeholder)
+├── mcp-server/     # DailyKeeper MCP Server (dk-mcp, stdio)
 ├── frontend/       # DailyKeeper Dashboard (phase 4, placeholder)
 ├── deploy/         # Docker Compose deployment (api / scheduler / worker / browser-worker)
 └── docs/           # PRD, ARCHITECTURE, PLUGIN_SDK, DATABASE, API, DEPLOYMENT
@@ -74,5 +76,6 @@ dailykeeper/
 - [PLUGIN_SDK](docs/PLUGIN_SDK.md) — plugin interface, registration, dev guide
 - [DATABASE](docs/DATABASE.md) — data model and relationships
 - [API](docs/API.md) — auth, platforms, accounts, tasks, executions, resources, system
+- [MCP](docs/MCP.md) — MCP Server (dk-mcp) for AI assistant integration
 - [DEPLOYMENT](docs/DEPLOYMENT.md) — Docker Compose deployment guide
 - [plan.md](plan.md) — 原始项目规划（V1.0）

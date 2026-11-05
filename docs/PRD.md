@@ -51,11 +51,11 @@ DailyKeeper 解决四类问题：
 - Web Dashboard 前端（阶段 4）：六页管理界面 + 插件动态表单。
 - 浏览器自动化执行线（阶段 5a）：Playwright browser worker + 会话持久化（M-Team 保活）。
 - 本地 Agent（阶段 5b）：拉取式协议（心跳 / 认领 / 上下文 / 回传），令牌轮换与离线清扫。
+- MCP Server（dk-mcp）：AI 助手接入（查询状态 / 触发任务 / 资源查询）。
 
 ### 3.3 后续版本
 
 - Agent 浏览器 / 桌面自动化能力（WorkBuddy 适配）。
-- MCP 服务。
 - 插件市场。
 - 多用户权限。
 - 复杂任务工作流。
