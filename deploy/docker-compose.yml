@@ -1,0 +1,44 @@
+name: dailykeeper
+
+x-dk-build: &dk-build
+  context: ..
+  dockerfile: deploy/Dockerfile.backend
+
+services:
+  api:
+    build: *dk-build
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - dk-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  scheduler:
+    build: *dk-build
+    command: python -m app.scheduler
+    env_file: .env
+    volumes:
+      - dk-data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  worker:
+    build: *dk-build
+    command: python -m app.worker
+    env_file: .env
+    volumes:
+      - dk-data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  dk-data:

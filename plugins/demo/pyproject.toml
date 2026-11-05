@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dailykeeper-plugin-demo"
+version = "0.1.0"
+description = "DailyKeeper 演示平台插件：验证任务引擎闭环（调度→执行→去重→结果→通知），测试用"
+requires-python = ">=3.12"
+dependencies = ["dailykeeper-sdk"]
+
+[project.entry-points."dailykeeper.plugins"]
+demo = "dailykeeper_plugin_demo.plugin:DemoPlugin"

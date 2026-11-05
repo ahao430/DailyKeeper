@@ -1,0 +1,8 @@
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+COPY sdk/ ./sdk/
+COPY plugins/ ./plugins/
+COPY backend/ ./backend/
+RUN pip install --no-cache-dir /app/sdk /app/plugins/demo /app/plugins/newapi /app/plugins/mteam /app/plugins/nexusphp /app/backend
+CMD ["python", "-m", "app.worker"]

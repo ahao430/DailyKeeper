@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dailykeeper-plugin-newapi"
+version = "0.1.0"
+description = "DailyKeeper NewAPI/OneAPI 系中转站插件：每日签到、用户信息与余额查询（接口路径按站点可配置）"
+requires-python = ">=3.12"
+dependencies = ["dailykeeper-sdk"]
+
+[project.entry-points."dailykeeper.plugins"]
+newapi = "dailykeeper_plugin_newapi.plugin:NewApiPlugin"

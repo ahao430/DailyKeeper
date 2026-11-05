@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dailykeeper-plugin-nexusphp"
+version = "0.1.0"
+description = "DailyKeeper NexusPHP 站点插件：Cookie 每日签到（attendance.php），成功/已签/登录失效标记可配置"
+requires-python = ">=3.12"
+dependencies = ["dailykeeper-sdk"]
+
+[project.entry-points."dailykeeper.plugins"]
+nexusphp = "dailykeeper_plugin_nexusphp.plugin:NexusPHPPlugin"
