@@ -113,6 +113,8 @@ export interface Execution {
   status: string;
   retries: number;
   worker_id: string | null;
+  needs_browser: boolean;
+  needs_agent: boolean;
   due_at: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -165,6 +167,7 @@ export interface SystemInfo {
   scheduled_tasks: number;
   executions_today: number;
   executions_today_success: number;
+  agents_online: number;
   notifications_enabled: boolean;
   scheduler_heartbeat: SchedulerHeartbeat | null;
 }
@@ -241,6 +244,34 @@ export interface TestNotificationResponse {
   error: string | null;
 }
 
+/** GET /api/agents item. */
+export interface AgentInfo {
+  id: number;
+  name: string;
+  status: string;
+  version: string;
+  last_heartbeat: string | null;
+  meta: Record<string, unknown>;
+  created_at: string | null;
+  online: boolean;
+  running_tasks: number;
+}
+
+/** POST /api/agents response (token shown once, only its SHA-256 is stored). */
+export interface AgentCreated {
+  id: number;
+  name: string;
+  token: string;
+  note: string;
+}
+
+/** POST /api/agents/{id}/rotate response (old token invalidated immediately). */
+export interface AgentRotated {
+  id: number;
+  token: string;
+  note: string;
+}
+
 // ---------------------------------------------------------------------------
 // Request payloads
 // ---------------------------------------------------------------------------
@@ -314,6 +345,10 @@ export interface UpdateScheduledTaskRequest {
   interval_days?: number;
   params?: Record<string, unknown>;
   enabled?: boolean;
+}
+
+export interface CreateAgentRequest {
+  name: string;
 }
 
 export interface ListExecutionsParams {

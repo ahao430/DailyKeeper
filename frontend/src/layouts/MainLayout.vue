@@ -26,6 +26,10 @@
           <el-icon><DataAnalysis /></el-icon>
           <span>资源看板</span>
         </el-menu-item>
+        <el-menu-item index="/agents">
+          <el-icon><Monitor /></el-icon>
+          <span>执行端管理</span>
+        </el-menu-item>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
           <span>系统设置</span>
@@ -56,6 +60,7 @@ import {
   Calendar,
   DataAnalysis,
   Document,
+  Monitor,
   Odometer,
   Platform,
   Setting,

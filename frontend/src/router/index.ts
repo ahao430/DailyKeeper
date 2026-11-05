@@ -46,6 +46,12 @@ const router = createRouter({
           meta: { title: "资源看板" },
         },
         {
+          path: "agents",
+          name: "agents",
+          component: () => import("../views/Agents.vue"),
+          meta: { title: "执行端管理" },
+        },
+        {
           path: "settings",
           name: "settings",
           component: () => import("../views/Settings.vue"),

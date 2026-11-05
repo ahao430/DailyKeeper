@@ -5,10 +5,14 @@
 import client from "./client";
 import type {
   Account,
+  AgentCreated,
+  AgentInfo,
+  AgentRotated,
   BootstrapResponse,
   ChangePasswordRequest,
   CheckResponse,
   CreateAccountRequest,
+  CreateAgentRequest,
   CreatePlatformRequest,
   CreateScheduledTaskRequest,
   Execution,
@@ -178,6 +182,26 @@ export function listResources(params: ListResourcesParams = {}): Promise<Resourc
 
 export function getResourceSummary(): Promise<ResourceSummary[]> {
   return unwrap(client.get<ResourceSummary[]>("/resources/summary"));
+}
+
+// ---------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------
+
+export function listAgents(): Promise<AgentInfo[]> {
+  return unwrap(client.get<AgentInfo[]>("/agents"));
+}
+
+export function createAgent(payload: CreateAgentRequest): Promise<AgentCreated> {
+  return unwrap(client.post<AgentCreated>("/agents", payload));
+}
+
+export function deleteAgent(agentId: number): Promise<OkResponse> {
+  return unwrap(client.delete<OkResponse>(`/agents/${agentId}`));
+}
+
+export function rotateAgent(agentId: number): Promise<AgentRotated> {
+  return unwrap(client.post<AgentRotated>(`/agents/${agentId}/rotate`));
 }
 
 // ---------------------------------------------------------------------------

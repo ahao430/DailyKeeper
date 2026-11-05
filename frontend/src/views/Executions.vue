@@ -41,6 +41,11 @@
         <el-table-column prop="id" label="ID" width="70" align="center" />
         <el-table-column prop="account_name" label="账号" min-width="140" show-overflow-tooltip />
         <el-table-column prop="task_name" label="任务" min-width="150" show-overflow-tooltip />
+        <el-table-column label="执行线" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="laneTagType(row)" size="small">{{ laneLabel(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="business_date" label="业务日期" width="110" align="center" />
         <el-table-column label="状态" width="110" align="center">
           <template #default="{ row }">
@@ -117,7 +122,7 @@ import dayjs from "dayjs";
 import { listAccounts, listExecutions } from "../api";
 import { extractErrorMessage } from "../api/client";
 import type { Execution } from "../api/types";
-import { STATUS_LABELS, statusLabel, statusTagType } from "../constants/labels";
+import { STATUS_LABELS, statusLabel, statusTagType, type TagType } from "../constants/labels";
 
 const PAGE_SIZE = 20;
 
@@ -157,6 +162,27 @@ function formatTime(value: string | null): string {
   }
   const parsed = dayjs(value);
   return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm:ss") : value;
+}
+
+/** 执行线：Agent / 浏览器 / HTTP（按任务声明的执行通道）。 */
+function laneLabel(row: Execution): string {
+  if (row.needs_agent) {
+    return "Agent";
+  }
+  if (row.needs_browser) {
+    return "浏览器";
+  }
+  return "HTTP";
+}
+
+function laneTagType(row: Execution): TagType {
+  if (row.needs_agent) {
+    return "warning";
+  }
+  if (row.needs_browser) {
+    return "primary";
+  }
+  return "info";
 }
 
 async function fetchExecutions(reset: boolean): Promise<void> {

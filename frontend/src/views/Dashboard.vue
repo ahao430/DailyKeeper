@@ -48,6 +48,7 @@
             {{ info.notifications_enabled ? "已启用" : "已关闭" }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="在线 Agent">{{ info.agents_online }} 个</el-descriptions-item>
       </el-descriptions>
       <el-empty v-else-if="!loading" description="暂无系统信息" :image-size="80" />
     </el-card>
