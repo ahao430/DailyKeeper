@@ -151,6 +151,10 @@ class TaskExecution(Base):
     params: Mapped[dict] = mapped_column(JSON, default=dict)
     retries: Mapped[int] = mapped_column(Integer, default=0)
     needs_browser: Mapped[bool] = mapped_column(Boolean, default=False)
+    needs_agent: Mapped[bool] = mapped_column(Boolean, default=False)
+    assigned_agent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agents.id"), nullable=True
+    )
     worker_id: Mapped[str] = mapped_column(String(64), default="")
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

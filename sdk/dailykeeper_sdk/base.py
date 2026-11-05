@@ -39,6 +39,7 @@ class TaskDefinition:
     description: str = ""
     description_en: str = ""
     requires_browser: bool = False
+    requires_agent: bool = False
     default_time: str = "08:30"
     produces_resources: bool = True
     idempotent: bool = True
@@ -50,6 +51,7 @@ class TaskDefinition:
             "description": self.description,
             "description_en": self.description_en,
             "requires_browser": self.requires_browser,
+            "requires_agent": self.requires_agent,
             "default_time": self.default_time,
             "produces_resources": self.produces_resources,
             "idempotent": self.idempotent,
@@ -104,4 +106,5 @@ class PlatformPlugin(ABC):
             "account_schema": [f.to_dict() for f in self.account_schema],
             "task_definitions": [t.to_dict() for t in self.task_definitions],
             "requires_browser_any": any(t.requires_browser for t in self.task_definitions),
+            "requires_agent_any": any(t.requires_agent for t in self.task_definitions),
         }

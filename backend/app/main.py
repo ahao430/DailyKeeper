@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import accounts, auth, executions, platforms, resources, system, tasks
+from app.api import accounts, agent_api, agents, auth, executions, platforms, resources, system, tasks
 from app.core.config import get_settings
 from app.core.database import dispose_engine, get_session_factory, init_engine
 from app.models.tables import Base
@@ -64,6 +64,8 @@ def create_app() -> FastAPI:
     app.include_router(executions.router)
     app.include_router(resources.router)
     app.include_router(system.router)
+    app.include_router(agents.router)
+    app.include_router(agent_api.router)
 
     @app.get("/healthz", tags=["system"])
     async def healthz() -> dict:

@@ -7,7 +7,7 @@ detected from the ``system_settings`` table.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -17,12 +17,16 @@ from app.core.config import get_settings
 from app.core.timeutil import next_occurrence, now_utc
 from app.models import (
     Account,
+    Agent,
     PlatformInstance,
     ScheduledTask,
     SystemSetting,
+    TaskExecution,
+    TaskResultRecord,
 )
 from app.models.tables import ACCOUNT_STATUS_DISABLED
-from app.services.task_engine import create_execution
+from app.services import notification_service
+from app.services.task_engine import AGENT_OFFLINE_SECONDS, create_execution
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +34,67 @@ SCHEDULER_HEARTBEAT_KEY = "scheduler_heartbeat"
 
 # 模块级调度器实例 ID：每个进程启动时生成一次，用于心跳互斥检测
 scheduler_id = uuid4().hex
+
+
+async def sweep_offline_agents(session: AsyncSession, *, now=None) -> int:
+    """把心跳超时的 ONLINE Agent 标记为 OFFLINE，并中断其运行中执行。
+
+    每个被扫掉的 Agent 记录一条 ``agent_offline`` 通知（事件默认启用，无
+    渠道时仍会落一条 SKIPPED 记录）。不提交事务；由调用方
+    （``scan_and_enqueue``）统一提交。返回被标记离线的 Agent 数。
+    """
+    now = now or now_utc()
+    deadline = now - timedelta(seconds=AGENT_OFFLINE_SECONDS)
+    agents = (
+        await session.scalars(
+            select(Agent).where(
+                Agent.status == "ONLINE",
+                Agent.last_heartbeat.isnot(None),
+                Agent.last_heartbeat < deadline,
+            )
+        )
+    ).all()
+    if not agents:
+        return 0
+
+    for agent in agents:
+        agent.status = "OFFLINE"
+        running = (
+            await session.scalars(
+                select(TaskExecution).where(
+                    TaskExecution.assigned_agent_id == agent.id,
+                    TaskExecution.status == "RUNNING",
+                )
+            )
+        ).all()
+        for execution in running:
+            execution.status = "INTERRUPTED"
+            execution.finished_at = now
+            session.add(
+                TaskResultRecord(
+                    execution_id=execution.id,
+                    success=False,
+                    status="INTERRUPTED",
+                    message="Agent 离线超时，任务中断",
+                )
+            )
+        await notification_service.notify(
+            session,
+            "agent_offline",
+            title="[DailyKeeper] Agent 离线",
+            body=(
+                f"Agent {agent.name} 超过 {AGENT_OFFLINE_SECONDS} 秒未心跳，"
+                f"已标记离线，其 {len(running)} 个运行中任务已中断"
+            ),
+            context={"agent_id": agent.id, "agent_name": agent.name},
+        )
+        logger.warning(
+            "Agent 心跳超时标记离线 agent=%s id=%s 中断执行数=%s",
+            agent.name,
+            agent.id,
+            len(running),
+        )
+    return len(agents)
 
 
 async def scan_and_enqueue(session: AsyncSession) -> int:
@@ -54,6 +119,9 @@ async def scan_and_enqueue(session: AsyncSession) -> int:
         session.add(SystemSetting(key=SCHEDULER_HEARTBEAT_KEY, value=heartbeat_value))
     else:
         heartbeat.value = heartbeat_value
+
+    # Agent 离线清扫：放在任务扫描之前，保证入队/中断决策基于最新健康状态
+    await sweep_offline_agents(session, now=now)
 
     rows = (
         await session.execute(

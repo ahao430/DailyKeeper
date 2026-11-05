@@ -77,6 +77,13 @@ class DemoPlugin(PlatformPlugin):
             default_time="10:00",
             produces_resources=False,
         ),
+        TaskDefinition(
+            name="agent_probe",
+            description="Agent 探针（在本地执行端回显配置，验证 Agent 链路）",
+            requires_agent=True,
+            default_time="10:30",
+            produces_resources=False,
+        ),
     ]
 
     async def execute(self, task_name: str, context: TaskContext) -> TaskResult:
@@ -84,6 +91,8 @@ class DemoPlugin(PlatformPlugin):
             return TaskResult.failed(f"未知任务: {task_name}")
         if task_name == "browser_probe":
             return await self._execute_browser_probe(context)
+        if task_name == "agent_probe":
+            return self._execute_agent_probe(context)
 
         config = context.config or {}
         behavior = str(config.get("behavior") or "success")
@@ -137,6 +146,22 @@ class DemoPlugin(PlatformPlugin):
         return TaskResult.ok(
             f"浏览器探针成功: {title}",
             data={"title": title, "url": context.browser.url},
+        )
+
+    def _execute_agent_probe(self, context: TaskContext) -> TaskResult:
+        """回显配置，验证本地 Agent 执行链路（不依赖 context.http/browser）。"""
+        config = context.config or {}
+        echo = str(config.get("agent_echo") or "pong")
+        import platform as _platform
+
+        return TaskResult.ok(
+            f"Agent 探针成功: {echo}",
+            data={
+                "echo": echo,
+                "runner_hostname": _platform.node(),
+                "runner_python": _platform.python_version(),
+                "platform_id": context.platform_id,
+            },
         )
 
     def _build_resources(self, config: dict) -> list[dict]:

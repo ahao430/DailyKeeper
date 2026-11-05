@@ -130,6 +130,7 @@ class HelloPlugin(PlatformPlugin):
 | `description` | str | `""` | 任务中文描述 |
 | `description_en` | str | `""` | 任务英文描述 |
 | `requires_browser` | bool | `False` | 是否需要浏览器自动化；此类任务由 **browser worker**（Playwright）执行，见第六节「浏览器任务」 |
+| `requires_agent` | bool | `False` | 是否需要本地 Agent 执行；此类任务由用户本机的 **dk-agent** 拉取执行，见第七节「Agent 任务」 |
 | `default_time` | str | `"08:30"` | 创建定时任务时的默认执行时间（站点时区） |
 | `produces_resources` | bool | `True` | 任务是否产出资源快照（余额/积分/额度等） |
 | `idempotent` | bool | `True` | 是否幂等；**非幂等任务（如已提交的签到）失败后不会自动重试**，避免重复提交触发风控 |
@@ -166,7 +167,24 @@ demo 插件的 `browser_probe` 任务（`plugins/demo/dailykeeper_plugin_demo/pl
 
 SDK 本身**不依赖** playwright——只有 browser worker 运行环境需要（`deploy/Dockerfile.browser` 镜像内置）。声明了 `requires_browser` 任务的插件，在本地调试时需自行安装：`pip install playwright && playwright install chromium`。
 
-## 七、资源快照协议
+## 七、Agent 任务（requires_agent）
+
+任务声明 `requires_agent=True` 后，服务器 Worker 不认领这类执行，由用户本机运行的 **Local Agent**（`dk-agent`）经 `POST /api/agent/tasks/claim` 拉取执行。适用于依赖本机环境的目标（桌面应用、本地浏览器登录态等，如 WorkBuddy）。
+
+### 执行机制
+
+- 插件必须安装在 **Agent 所在环境**（`pip install -e your-plugin` 即可，entry points 自动发现）；服务器与 Agent 共享同一套 SDK。
+- Agent 拉取任务后调用 `GET /api/agent/tasks/{id}/context` 获取**解密后的凭据与配置**（传输安全由部署层 HTTPS 保证），在本地构建 `TaskContext` 执行插件，再把 `TaskResult` 回传服务器 finalize。
+- `context.http`（`HttpClient`）在 Agent 环境同样可用；`context.browser` 目前仅服务器 browser worker 提供（Agent 上报能力 `["http"]`）。
+- 超时、异常脱敏、离线容忍与服务器侧一致；离线清扫（90 秒无心跳 → 任务置 INTERRUPTED）由服务器调度器负责。
+
+### 示例参考
+
+`plugins/demo` 的 `agent_probe` 任务：在 Agent 环境回显配置并返回本机 hostname，用于验证 Agent 执行线（服务器侧用例见 `backend/tests/test_agent.py`，Agent 侧见 `backend/tests/test_local_agent.py`）。
+
+---
+
+## 八、资源快照协议
 
 任务产出的资源数据通过 `result.data["resources"]` 返回，引擎会持久化到 `resource_snapshots` 表：
 
@@ -186,7 +204,7 @@ result.data["resources"] = [
 - 一个任务可以返回多条资源快照。
 - 资源汇总通过 `GET /api/resources/summary` 查询。
 
-## 八、注册方式
+## 九、注册方式
 
 在插件 `pyproject.toml` 中声明 entry point，group 固定为 `dailykeeper.plugins`：
 
@@ -213,7 +231,7 @@ include = ["dailykeeper_hello*"]
 
 服务启动时引擎调用 `plugin_registry.load_entry_points()` 加载全部插件；损坏的 entry point 会被跳过并记录警告，不会拖垮启动。V1 采用**可信插件白名单**：只有随镜像安装的官方插件会被加载。
 
-## 九、本地调试方法
+## 十、本地调试方法
 
 ```bash
 # 1. 安装 SDK、你的插件与后端
@@ -232,7 +250,7 @@ uvicorn app.main:app --reload
 
 调试建议：先在插件 `execute()` 里用 `context.logger.debug()` 打印请求响应（注意不要打印凭据），再逐步接入真实站点。
 
-## 十、M-Team 特殊说明
+## 十一、M-Team 特殊说明
 
 M-Team 提供 API Key 方式接入（站点控制台 → 实验室 → 存取令牌），但 **API 访问不计入登录活跃**。因此：
 
@@ -241,7 +259,7 @@ M-Team 提供 API Key 方式接入（站点控制台 → 实验室 → 存取令
 - `get_user_info` 等信息查询类任务走 API Key 正常执行，可采集用户信息与资源快照。
 - 详细部署注意事项见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
-## 十一、发布规范
+## 十二、发布规范
 
 - **可信插件白名单**：V1 只加载随镜像分发的官方插件；要接入新平台，将插件放入 `plugins/` 并加入镜像构建（`deploy/Dockerfile.*` 的 `pip install` 列表）。
 - **第三方插件本质是可执行代码**：普通 Python 插件不是安全沙箱，安装第三方插件等于在该机器上运行任意代码。请按 plan.md §11.3 安全设计审慎评估来源与行为，V1 不提供插件市场，后续再研究独立容器隔离。

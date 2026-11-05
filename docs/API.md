@@ -9,7 +9,7 @@
 | 方法 | 路径 | 认证 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/healthz` | 公开 | 健康检查（容器 healthcheck 使用） |
-| GET | `/api/system/info` | 需要 | 系统信息：版本、环境、插件数量、调度器心跳等 |
+| GET | `/api/system/info` | 需要 | 系统信息：版本、环境、插件数量、调度器心跳、在线 Agent 数（`agents_online`）等 |
 | GET | `/api/system/settings` | 需要 | 读取系统设置 |
 | PUT | `/api/system/settings` | 需要 | 更新系统设置（JSON 合并写入） |
 | GET | `/api/system/notifications` | 需要 | 读取通知渠道与事件开关配置 |
@@ -71,6 +71,28 @@
 | --- | --- | --- | --- |
 | GET | `/api/resources` | 需要 | 资源快照列表（支持按账号/类型/时间过滤） |
 | GET | `/api/resources/summary` | 需要 | 资源汇总：每账号每资源类型的最新值 |
+
+### Agent 管理（本地 Agent 注册/令牌）
+
+| 方法 | 路径 | 认证 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/agents` | 需要 | Agent 列表：status / version / last_heartbeat / `online`（心跳新鲜度，90 秒窗口）/ running_tasks 等 |
+| POST | `/api/agents` | 需要 | 注册 Agent 并生成令牌；**令牌仅在本次响应中明文返回一次**（服务端只存 SHA-256 摘要） |
+| DELETE | `/api/agents/{agent_id}` | 需要 | 删除 Agent：其运行中执行标记 INTERRUPTED（附失败结果），历史执行保留、Agent 引用置空 |
+| POST | `/api/agents/{agent_id}/rotate` | 需要 | 轮换令牌：旧令牌立即失效，新令牌仅返回一次 |
+
+### Agent 专用接口（`X-Agent-Token`）
+
+这组端点**不使用管理员 JWT**，凭 `X-Agent-Token` 请求头认证（令牌缺失/无效统一返回 401）。请求/响应示例见第四节。
+
+| 方法 | 路径 | 认证 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/api/agent/heartbeat` | Agent 令牌 | 心跳上线：上报版本与能力列表，返回心跳间隔（30s）与服务器时间 |
+| POST | `/api/agent/tasks/claim` | Agent 令牌 | 认领到期的 Agent 通道执行（`limit` 1–5，默认 2；PENDING → RUNNING，绑定该 Agent） |
+| GET | `/api/agent/tasks/{execution_id}/context` | Agent 令牌 | 执行上下文：合并配置、base_url 与**解密后的凭据**（生产必须 HTTPS） |
+| POST | `/api/agent/tasks/{execution_id}/result` | Agent 令牌 | 回传结果并终结执行；迟到结果（如已被离线清扫置 INTERRUPTED）仍可上报并覆盖状态 |
+
+> 归属规则：context / result 仅允许认领该执行的 Agent 访问——其他 Agent（即使令牌有效）返回 **403**；执行记录不存在返回 404。
 
 ## 二、curl 完整流程示例
 

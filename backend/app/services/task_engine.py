@@ -30,6 +30,10 @@ from dailykeeper_sdk.registry import plugin_registry
 
 logger = logging.getLogger(__name__)
 
+# Agent 心跳离线判定窗口（秒）：超过该时长未心跳的 ONLINE Agent 被扫为离线。
+# 定义在 task_engine 以避免调度器与 API 层之间的循环导入。
+AGENT_OFFLINE_SECONDS = 90
+
 # 业务日期内视为“已存在执行”的状态（成功/进行中的结果不重复排队）
 DEDUPE_STATUSES = ("PENDING", "RUNNING", "SUCCESS", "AUTH_EXPIRED", "NEEDS_ACTION")
 
@@ -77,12 +81,13 @@ async def create_execution(
     instance = account.instance
     bd = business_date_for(instance)
 
-    # 任务声明为需要浏览器时，执行记录打标，由 browser worker 认领
+    # 任务声明为需要浏览器/Agent 时，执行记录打标，分流到对应执行线
     plugin = plugin_registry.get(instance.platform_id)
     task_def = next(
         (t for t in plugin.task_definitions if t.name == task_name), None
     ) if plugin is not None else None
     needs_browser = bool(task_def and task_def.requires_browser)
+    needs_agent = bool(task_def and task_def.requires_agent)
 
     if not force:
         existing_id = await session.scalar(
@@ -107,6 +112,7 @@ async def create_execution(
         params=params or {},
         retries=retries,
         needs_browser=needs_browser,
+        needs_agent=needs_agent,
         due_at=due_at or now_utc(),
     )
     session.add(execution)
@@ -120,19 +126,26 @@ async def claim_pending(
     """Atomically claim up to ``limit`` due PENDING executions for one worker.
 
     ``browser=True`` claims only executions that need browser automation; the
-    regular worker claims the rest. The claim is a conditional UPDATE
-    (status PENDING -> RUNNING), so two workers never take the same execution.
-    Rows actually owned by this worker are returned ordered by id. Does not
-    commit; the caller commits.
+    regular worker claims the rest — agent-lane executions are claimed by
+    neither (local agents pull them via ``claim_agent_tasks``). The claim is a
+    conditional UPDATE (status PENDING -> RUNNING), so two workers never take
+    the same execution. Rows actually owned by this worker are returned
+    ordered by id. Does not commit; the caller commits.
     """
     now = now_utc()
+    if browser:
+        lane_filter = TaskExecution.needs_browser.is_(True)
+    else:  # HTTP 执行线：既不要浏览器任务，也不要 Agent 任务
+        lane_filter = (TaskExecution.needs_browser.is_(False)) & (
+            TaskExecution.needs_agent.is_(False)
+        )
     ids = (
         await session.scalars(
             select(TaskExecution.id)
             .where(
                 TaskExecution.status == "PENDING",
                 TaskExecution.due_at.is_(None) | (TaskExecution.due_at <= now),
-                TaskExecution.needs_browser.is_(browser),
+                lane_filter,
             )
             .order_by(TaskExecution.id)
             .limit(limit)
@@ -161,18 +174,67 @@ async def claim_pending(
     return list(claimed)
 
 
+async def claim_agent_tasks(session: AsyncSession, agent, limit: int) -> list[TaskExecution]:
+    """Claim due PENDING agent-lane executions for one local agent.
+
+    Same conditional-UPDATE pattern as ``claim_pending``: sets RUNNING,
+    ``worker_id = agent-<id>`` and ``assigned_agent_id``. Does not commit.
+    """
+    now = now_utc()
+    ids = (
+        await session.scalars(
+            select(TaskExecution.id)
+            .where(
+                TaskExecution.status == "PENDING",
+                TaskExecution.due_at.is_(None) | (TaskExecution.due_at <= now),
+                TaskExecution.needs_agent.is_(True),
+            )
+            .order_by(TaskExecution.id)
+            .limit(limit)
+        )
+    ).all()
+    if not ids:
+        return []
+
+    worker_id = f"agent-{agent.id}"
+    await session.execute(
+        update(TaskExecution)
+        .where(TaskExecution.id.in_(ids), TaskExecution.status == "PENDING")
+        .values(
+            status="RUNNING", worker_id=worker_id, assigned_agent_id=agent.id, started_at=now
+        )
+        .execution_options(synchronize_session=False)
+    )
+    claimed = (
+        await session.scalars(
+            select(TaskExecution)
+            .where(
+                TaskExecution.id.in_(ids),
+                TaskExecution.worker_id == worker_id,
+                TaskExecution.status == "RUNNING",
+            )
+            .order_by(TaskExecution.id)
+        )
+    ).all()
+    return list(claimed)
+
+
 async def recover_interrupted(session: AsyncSession, *, browser: bool | None = None) -> int:
     """Mark RUNNING executions as INTERRUPTED after a service restart.
 
-    ``browser`` filters by execution type so one worker daemon restarting
-    never interrupts the other kind's in-flight executions (None = all).
+    ``browser`` filters by execution lane so one worker daemon restarting
+    never interrupts the other kind's in-flight executions; agent-lane
+    executions are recovered by the offline sweep (or agent deletion),
+    not by server daemons, because the agent may still be running them.
     Each one gets a failure result record so the dashboard can show why it
     stopped. Commits the session and returns the number of recovered rows.
     """
     now = now_utc()
     query = select(TaskExecution).where(TaskExecution.status == "RUNNING")
     if browser is not None:
-        query = query.where(TaskExecution.needs_browser.is_(browser))
+        query = query.where(
+            TaskExecution.needs_browser.is_(browser), TaskExecution.needs_agent.is_(False)
+        )
     running = (await session.scalars(query)).all()
     for execution in running:
         execution.status = "INTERRUPTED"

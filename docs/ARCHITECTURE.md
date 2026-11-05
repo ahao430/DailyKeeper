@@ -8,8 +8,38 @@ DailyKeeper 采用**模块化单体（Modular Monolith）**架构，而不是一
 
 - **四进程模型**：`api`（uvicorn 提供 REST API）、`scheduler`（`python -m app.scheduler`，APScheduler 定时扫描）、`worker`（`python -m app.worker`，DB 队列消费者）、`browser-worker`（`python -m app.browser_worker`，Playwright 浏览器任务执行端）。前三个进程共用同一个镜像；`browser-worker` 使用内置 Playwright + Chromium 的专用镜像（`deploy/Dockerfile.browser`），四个进程通过 SQLite 数据库队列协作。
 - **SQLite 数据库队列**：APScheduler 只负责产生定时任务，任务队列与执行状态保存在 `task_executions` 表中，Worker 通过数据库事务（乐观锁 claim）领取任务，天然保证领取不重复。
-- **认领分流（needs_browser）**：任务声明 `requires_browser=True` 时，创建执行即打上 `needs_browser` 标记；普通 worker 只认领 `needs_browser=False` 的执行，browser worker 只认领 `needs_browser=True` 的执行（`claim_pending(..., browser=True/False)`），两类 Worker 天然互不抢占。
-- **双执行环境**：API 类任务（HTTP 插件）由 worker 直接执行；浏览器任务由 browser worker 执行——进程生命周期内共享一个 Chromium 实例，每次执行使用独立 Browser Context，并在执行前后按账号持久化 storage state（Cookie / localStorage，位于 `{data_dir}/browser_states/account-{id}.json`），实现登录态跨执行复用。本地 Agent（Mac/Windows）仍为后续规划。
+- **认领分流（needs_browser / needs_agent）**：任务声明 `requires_browser=True` / `requires_agent=True` 时，创建执行即打上对应标记；普通 worker 只认领 `needs_browser=False` 且 `needs_agent=False` 的执行，browser worker 只认领 `needs_browser=True` 的执行（`claim_pending(..., browser=True/False)`），两类 Worker 天然互不抢占。Agent 通道（`needs_agent=True`）的执行不被服务器 Worker 认领，由本地 Agent 经 `claim_agent_tasks` 拉取（同样条件更新原子认领，置 RUNNING 并写 `worker_id=agent-<id>` 与 `assigned_agent_id`）。
+- **三执行环境**：API 类任务（HTTP 插件）由 worker 直接执行；浏览器任务由 browser worker 执行——进程生命周期内共享一个 Chromium 实例，每次执行使用独立 Browser Context，并在执行前后按账号持久化 storage state（Cookie / localStorage，位于 `{data_dir}/browser_states/account-{id}.json`），实现登录态跨执行复用；本地 Agent 任务由用户本机（Mac / Windows / Linux）的 `dk-agent` 拉取执行（已实现，阶段 5b）。
+
+| 执行线 | 任务标记 | 认领方 | 执行环境 |
+| --- | --- | --- | --- |
+| HTTP 执行线 | `needs_browser=False` 且 `needs_agent=False` | worker 进程（`claim_pending(browser=False)`） | 服务器容器内，`context.http` |
+| 浏览器执行线 | `needs_browser=True` | browser-worker 进程（`claim_pending(browser=True)`） | 服务器容器内 Playwright + Chromium，`context.browser` |
+| Agent 执行线 | `needs_agent=True` | 本地 Agent 拉取（`claim_agent_tasks`，`POST /api/agent/tasks/claim`） | 用户本机插件环境（`dk-agent`，插件装在 Agent 环境） |
+
+**本地 Agent（拉取式协议，已实现）**：Agent 与服务器之间没有长连接，全部交互由 Agent 主动发 HTTP 请求完成——心跳（默认 30s，服务器可动态下调）→ 认领 → 拉取上下文 → 本地执行 → 回传结果。认证使用 `X-Agent-Token` 请求头，服务端仅保存令牌的 SHA-256 摘要（无法反查明文），支持轮换（旧令牌立即失效）与删除（删除即中断其运行中执行）。上下文接口下发**解密后的凭据**，传输层安全必须在部署层保证（生产全程 HTTPS，反向代理终止 TLS 亦可）。服务器调度器每轮扫描做离线清扫：超过 `AGENT_OFFLINE_SECONDS`（90 秒，代码常量）未心跳的 Agent 标记 OFFLINE，其 RUNNING 执行置为 INTERRUPTED 并发送 `agent_offline` 通知；Agent 侧对服务器不可达保持离线容忍（告警退避重试，不退出进程）。Agent 与服务器共享 DailyKeeper SDK，插件运行在 Agent 自身的 Python 环境中（entry points 注册，服务器不下发插件代码）。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as 本地 Agent（dk-agent）
+    participant S as 服务器（/api/agent/*）
+    participant D as SQLite 数据库
+    participant P as 本地插件（Agent 环境）
+
+    A->>S: heartbeat（X-Agent-Token，默认 30s）
+    S->>D: 刷新 last_heartbeat / ONLINE
+    A->>S: tasks/claim
+    S->>D: 原子认领 needs_agent 执行（RUNNING + agent-<id>）
+    S-->>A: 到期任务列表
+    A->>S: tasks/{id}/context
+    S->>D: 读取配置与凭据（解密）
+    S-->>A: credentials / config（必须 HTTPS）
+    A->>P: 本地执行插件 plugin.execute(task_name, context)
+    P-->>A: TaskResult
+    A->>S: tasks/{id}/result
+    S->>D: finalize（结果 / 账号状态 / 通知 / 重试）
+```
 
 ## 二、技术选型
 
@@ -54,7 +84,7 @@ flowchart LR
 
     subgraph ext["外部"]
         P1["外部平台\n（M-Team / NewAPI / NexusPHP …）"]
-        LA["Local Agent（规划中，阶段 5）"]
+        LA["Local Agent（dk-agent，拉取式）"]
         N["Bark / Gotify / Webhook"]
     end
 
@@ -68,7 +98,8 @@ flowchart LR
     BW <-->|执行前恢复 / 执行后持久化| ST
     PR -->|HTTPX| P1
     PR -->|Playwright| P1
-    PR -.-> LA
+    LA -->|"HTTPS：heartbeat / claim / context / result（X-Agent-Token）"| API
+    LA -->|本地插件执行| P1
     WK -->|通知事件| N
 ```
 
@@ -90,7 +121,7 @@ flowchart LR
 
 1. **Scheduler 扫描**：scheduler 进程按固定间隔（默认 30s）扫描 `scheduled_tasks`，对到期任务计算站点时区下的 `business_date`。
 2. **create_execution（业务日期去重 + needs_browser 打标）**：为该账号 + 任务 + 业务日期创建 `task_executions` 行；若已存在去重状态（`DEDUPE_STATUSES`）内的记录则跳过，保证同一天只执行一次。任务声明 `requires_browser=True` 时，执行行同时打上 `needs_browser` 标记。
-3. **Worker claim（乐观锁更新 claim，按 needs_browser 分流）**：worker 进程轮询 PENDING 且到期、`needs_browser=false` 的执行记录；browser worker 只认领 `needs_browser=true` 的记录。两者都通过条件更新（乐观锁）抢占任务并写入 `worker_id`，多 worker 不会重复领取。
+3. **Worker claim（乐观锁更新 claim，按 needs_browser 分流）**：worker 进程轮询 PENDING 且到期、`needs_browser=false` 的执行记录；browser worker 只认领 `needs_browser=true` 的记录。两者都通过条件更新（乐观锁）抢占任务并写入 `worker_id`，多 worker 不会重复领取。Agent 通道（`needs_agent=true`）的执行不被两类 Worker 认领，由本地 Agent 经 `POST /api/agent/tasks/claim` 拉取（同样乐观锁，`worker_id=agent-<id>`）。
 4. **Plugin Runtime 构建上下文（解密凭据）**：引擎加载该平台插件，解密 AES-GCM 凭据，组装 `TaskContext`（凭据、实例配置、base_url、HTTP 客户端、日志）；浏览器任务额外注入 `context.browser`（BrowserSession）。
 5. **plugin.execute**：调用插件的 `execute(task_name, context)`，返回统一的 `TaskResult`。`requires_browser` 的任务若被普通 worker 误领（无浏览器会话），运行时守卫直接 finalize 为 `NEEDS_ACTION`，等待 browser worker 接管重跑，不会盲目执行。
 6. **finalize（结果 / 账号状态 / 资源快照 / 通知 / 重试）**：保存 `task_results`；按结果更新账号状态（如 `AUTH_EXPIRED`）；持久化 `result.data["resources"]` 为资源快照；按事件开关发送通知；可重试失败按退避策略创建新的执行记录（`retries + 1`）。
@@ -120,7 +151,7 @@ flowchart LR
 
 ## 八、后续演进
 
-- **Local Agent（阶段 5）**：Mac / Windows 本地执行端，与服务器共享 DailyKeeper SDK，通过 HTTPS/WebSocket **主动连接**服务器领取浏览器/桌面自动化任务（Agent 表与心跳字段已预留）。
+- **Agent 浏览器 / 桌面自动化能力**：本地 Agent 基础链路（心跳 / 认领 / 上下文 / 回传）已于阶段 5 交付；Agent 当前上报能力为 `["http"]`（`context.http` 可用），浏览器会话（`context.browser`）与桌面自动化待后续版本提供。
 - **MCP 服务**：将任务状态与资源数据通过 MCP 暴露给 AI 助手。
 - **Redis / Celery**：并发量明显增加后再替换 SQLite 队列。
 - **PostgreSQL**：多实例部署或数据量增长后迁移，ORM 层已按可移植性编写。

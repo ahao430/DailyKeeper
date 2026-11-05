@@ -14,7 +14,7 @@ It brings account management, daily check-in service, scheduled tasks, task exec
 - **Resource Monitoring** — Track balances, credits, quotas, usage, and expiration times.
 - **Extensible Plugin System** — Add new platforms and capabilities through a unified plugin SDK.
 - **Browser Automation** — Automate supported web workflows with Playwright via a dedicated browser worker.
-- **Local Agent** — Extend automation to local desktop applications and browsers (later phase).
+- **Local Agent** — Extend automation to local desktop applications via a pull-based local agent (`dk-agent`).
 - **Notifications** — Bark / Gotify / Webhook with per-event toggles.
 - **Self-hosted** — Deploy and manage your own automation service.
 

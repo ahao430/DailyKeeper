@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dailykeeper-agent"
+version = "0.1.0"
+description = "DailyKeeper Agent — 本地执行端（心跳/认领/执行/回传）"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "dailykeeper-sdk",
+]
+
+[project.scripts]
+dk-agent = "dailykeeper_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dailykeeper_agent*"]

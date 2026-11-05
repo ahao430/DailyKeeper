@@ -73,7 +73,37 @@ curl http://127.0.0.1:8000/healthz
 - **单独排障**：临时起一个有头实例排查页面问题时，可 `docker compose -f deploy/docker-compose.yml run -e DAILYKEEPER_BROWSER_HEADLESS=false -e DAILYKEEPER_BROWSER_SLOW_MO_MS=250 browser-worker`（需要桌面环境转发）。
 - 不部署 browser-worker 时，浏览器任务会被普通 worker 的守卫置为 `NEEDS_ACTION`（不会误执行），部署后新任务自动走浏览器执行。
 
-## 四、数据持久化与备份
+## 四、本地 Agent（dk-agent）部署
+
+本地 Agent 把任务执行延伸到你的 Mac / Windows / Linux 桌面环境（桌面应用、本地浏览器登录态等），与服务器共享 DailyKeeper SDK。协议为**拉取式**：Agent 主动向服务器发心跳 / 认领 / 拉取上下文 / 回传结果，服务器不需要访问你的电脑，家庭网络 NAT 后面即可运行（详见 [ARCHITECTURE.md](ARCHITECTURE.md)）。
+
+**服务器侧（创建 Agent 令牌）**
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:8000/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"<你的管理员密码>"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+curl -s -X POST http://127.0.0.1:8000/api/agents -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"我的 Mac"}'
+# 返回 {"id":1,"name":"我的 Mac","token":"...","note":"令牌仅显示一次..."} —— 立即保存 token
+```
+
+**Agent 侧（安装并运行）**
+
+```bash
+# 与服务器相同版本：git clone 同一仓库
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e sdk -e plugins/demo -e local-agent      # 插件按需安装（装了什么就能跑什么平台）
+export DK_AGENT_SERVER="https://your-server.com"       # 生产必须 HTTPS：凭据经上下文接口下发
+export DK_AGENT_TOKEN="<上一步的一次性令牌>"
+dk-agent                                               # 或 python -m dailykeeper_agent
+```
+
+- **心跳**：默认 30 秒；超过 90 秒（`AGENT_OFFLINE_SECONDS`，代码常量）未心跳，调度器将该 Agent 置为 OFFLINE，中断其运行中任务并发送 `agent_offline` 通知。
+- **令牌**：支持轮换（`POST /api/agents/{id}/rotate`，旧令牌立即失效）与撤销（删除 Agent 即中断其运行中任务）。
+- **凭据**：仅经上下文接口下发、只驻留 Agent 进程内存，不落盘；离线时 Agent 容忍服务器不可达（退避重试不退出）。
+- **浏览器任务**：Agent 上报能力为 `["http"]`（`context.http` 可用）；`context.browser` 目前仅服务器 browser worker 提供。
+
+## 五、数据持久化与备份
 
 - 所有持久化数据在 Docker 卷 `dk-data` 中，容器内路径 `/app/data`，数据库文件为 `/app/data/dailykeeper.db`。
 - 更换宿主机或迁移时，先备份数据卷再操作。
@@ -100,7 +130,7 @@ docker compose -f deploy/docker-compose.yml cp api:/app/data/backup.db ./dailyke
 
 恢复：停服务后把备份文件放回卷内 `dailykeeper.db`（或用 SQLite `restore`），再启动。
 
-## 五、升级
+## 六、升级
 
 ```bash
 cd DailyKeeper
@@ -111,7 +141,7 @@ docker compose -f deploy/docker-compose.yml up -d
 
 升级前建议先执行第四节的数据备份。数据库 schema 变更随应用自动/迁移脚本处理（Alembic），不会删除已有数据。
 
-## 六、首个账号配置流程
+## 七、首个账号配置流程
 
 通过 Swagger UI（`/docs`）或 curl（示例见 [API.md](API.md)）完成：
 
@@ -122,7 +152,7 @@ docker compose -f deploy/docker-compose.yml up -d
 5. **验证**：`POST /api/scheduled-tasks/{id}/run-now` 立即执行一次 → `GET /api/executions` 轮询状态 → `GET /api/resources/summary` 查看资源快照。
 6. 配置通知（见下一节）后，失败 / 登录失效等事件会自动推送。
 
-## 七、通知配置
+## 八、通知配置
 
 通知支持 Bark / Gotify / Webhook 三种渠道，按事件独立开关（每日签到成功默认可选，其余异常事件默认开启）。
 
@@ -131,7 +161,7 @@ docker compose -f deploy/docker-compose.yml up -d
 - 通知发送记录可在 `notifications` 数据中查看（`SENT` / `FAILED` / `SKIPPED`）。
 - 后续 Dashboard（阶段 4）将提供图形化配置界面。
 
-## 八、M-Team 注意事项
+## 九、M-Team 注意事项
 
 - **API Key 获取**：M-Team 站点控制台 → 实验室 → 存取令牌（API Key），在创建账号凭据中以 `api_key` 字段提交。
 - **API 访问不计入登录活跃**：因此 M-Team 的每日保活签到任务（`daily_checkin`）需要浏览器登录态，插件将其声明为 `requires_browser=True`，由 browser-worker 执行。
@@ -139,7 +169,7 @@ docker compose -f deploy/docker-compose.yml up -d
 - 未部署 browser-worker 时，该任务会被守卫置为 `NEEDS_ACTION` 并推送「需要人工验证」通知——部署 browser-worker 后自动恢复浏览器执行。
 - 用户信息、资源查询类任务（`get_user_info` 等）走 API Key 可正常执行与采集。
 
-## 九、常见问题
+## 十、常见问题
 
 | 现象 | 处理 |
 | --- | --- |
