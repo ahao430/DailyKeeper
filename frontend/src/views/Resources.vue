@@ -41,6 +41,42 @@
       <el-empty v-else-if="!loading" description="暂无资源数据，任务执行后自动采集" :image-size="90" />
     </el-card>
 
+    <!-- 趋势 -->
+    <el-card shadow="never" class="trend-card">
+      <template #header>
+        <div class="trend-header">
+          <span class="card-title">趋势</span>
+          <div class="trend-filters">
+            <el-select
+              v-model="trendAccountId"
+              filterable
+              placeholder="账号"
+              style="width: 220px"
+              @change="onTrendAccountChange"
+            >
+              <el-option
+                v-for="group in summaryGroups"
+                :key="group.account_id"
+                :label="group.account_name"
+                :value="group.account_id"
+              />
+            </el-select>
+            <el-select v-model="trendResourceType" placeholder="资源类型" style="width: 160px">
+              <el-option
+                v-for="option in trendTypeOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <el-button type="primary" :loading="trendLoading" @click="loadTrend">查询</el-button>
+          </div>
+        </div>
+      </template>
+      <el-empty v-if="trendEmpty && !trendLoading" description="该资源暂无数值型快照" :image-size="90" />
+      <div v-else ref="trendChartRef" v-loading="trendLoading" class="trend-chart"></div>
+    </el-card>
+
     <!-- 快照记录 -->
     <el-card shadow="never" class="snapshots-card">
       <template #header>
@@ -85,7 +121,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import * as echarts from "echarts";
 import { ElMessage } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import dayjs from "dayjs";
@@ -197,6 +234,124 @@ function loadMoreSnapshots(): void {
   void loadSnapshots();
 }
 
+// ---------------------------------------------------------------------------
+// Trend chart (趋势)
+// ---------------------------------------------------------------------------
+
+const TREND_LIMIT = 200;
+
+const trendLoading = ref(false);
+const trendAccountId = ref<number | undefined>(undefined);
+const trendResourceType = ref("");
+const trendPoints = ref<(ResourceSnapshot & { value: number })[]>([]);
+const trendChartRef = ref<HTMLDivElement | null>(null);
+let trendChart: ReturnType<typeof echarts.init> | null = null;
+
+const trendTypeOptions = computed<{ value: string; label: string }[]>(() => {
+  const group = summaryGroups.value.find((item) => item.account_id === trendAccountId.value);
+  if (!group) {
+    return [];
+  }
+  const types = [...new Set(group.items.map((item) => item.resource_type))];
+  return types.map((type) => ({ value: type, label: resourceLabel(type) }));
+});
+
+const trendEmpty = computed(() => trendPoints.value.length === 0);
+
+watch([trendAccountId, trendResourceType], () => {
+  void loadTrend();
+});
+
+function onTrendAccountChange(): void {
+  const options = trendTypeOptions.value;
+  if (options.length && !options.some((option) => option.value === trendResourceType.value)) {
+    trendResourceType.value = options[0].value;
+  }
+  // watch([trendAccountId, trendResourceType]) 会触发重新查询
+}
+
+/** 挂载后总览加载完成时，默认选中第一个账号与其第一个资源类型（由 watch 触发查询）。 */
+function initTrendSelection(): void {
+  const firstGroup = summaryGroups.value[0];
+  if (!firstGroup) {
+    return;
+  }
+  if (trendAccountId.value === undefined) {
+    trendAccountId.value = firstGroup.account_id;
+  }
+  if (!trendResourceType.value) {
+    const options = trendTypeOptions.value;
+    if (options.length) {
+      trendResourceType.value = options[0].value;
+    }
+  }
+}
+
+async function loadTrend(): Promise<void> {
+  if (trendAccountId.value === undefined || !trendResourceType.value) {
+    trendPoints.value = [];
+    return;
+  }
+  trendLoading.value = true;
+  try {
+    const page = await listResources({
+      account_id: trendAccountId.value,
+      resource_type: trendResourceType.value,
+      limit: TREND_LIMIT,
+    });
+    trendPoints.value = page
+      .filter((item): item is ResourceSnapshot & { value: number } => item.value !== null)
+      .sort((a, b) => dayjs(a.observed_at).valueOf() - dayjs(b.observed_at).valueOf());
+    await nextTick();
+    renderTrend();
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, "加载趋势数据失败"));
+  } finally {
+    trendLoading.value = false;
+  }
+}
+
+function renderTrend(): void {
+  const el = trendChartRef.value;
+  if (!el) {
+    return;
+  }
+  // el-empty 与图表互斥切换后 DOM 节点会被重建，旧实例需先销毁
+  if (trendChart && trendChart.getDom() !== el) {
+    trendChart.dispose();
+    trendChart = null;
+  }
+  if (!trendChart) {
+    trendChart = echarts.init(el);
+  }
+  const type = trendResourceType.value;
+  const summaryItem = summary.value.find(
+    (item) => item.account_id === trendAccountId.value && item.resource_type === type,
+  );
+  const unit = summaryItem?.unit ?? trendPoints.value[0]?.unit ?? null;
+  const option: echarts.EChartsOption = {
+    tooltip: { trigger: "axis" },
+    grid: { left: 12, right: 20, top: 24, bottom: 12, containLabel: true },
+    xAxis: { type: "time" },
+    yAxis: { type: "value", scale: true },
+    series: [
+      {
+        name: `${resourceLabel(type)}（${unit || "-"}）`,
+        type: "line",
+        smooth: true,
+        color: "#409eff",
+        data: trendPoints.value.map((item) => [item.observed_at, item.value]),
+        areaStyle: { opacity: 0.15 },
+      },
+    ],
+  };
+  trendChart.setOption(option, true);
+}
+
+function handleTrendResize(): void {
+  trendChart?.resize();
+}
+
 async function loadAll(): Promise<void> {
   loading.value = true;
   try {
@@ -209,7 +364,17 @@ async function loadAll(): Promise<void> {
   await Promise.all([loadSummary(), loadSnapshots()]);
 }
 
-onMounted(loadAll);
+onMounted(async () => {
+  window.addEventListener("resize", handleTrendResize);
+  await loadAll();
+  initTrendSelection();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", handleTrendResize);
+  trendChart?.dispose();
+  trendChart = null;
+});
 </script>
 
 <style scoped>
@@ -254,6 +419,29 @@ onMounted(loadAll);
 .overview-value {
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.trend-card {
+  margin-bottom: 16px;
+}
+
+.trend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trend-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trend-chart {
+  width: 100%;
+  height: 320px;
 }
 
 .snapshots-header {
