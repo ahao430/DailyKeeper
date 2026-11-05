@@ -16,7 +16,8 @@
 | `resource_snapshots` | 资源快照（余额/积分/额度等） |
 | `notifications` | 通知发送记录 |
 | `system_settings` | 系统级 KV 设置（JSON） |
-| `agents` | 本地 Agent 注册表（阶段 5 占位） |
+| `agents` | 本地 Agent 注册表（拉取式执行通道） |
+| `users` | 管理端用户（多管理员，PBKDF2 口令哈希） |
 
 ## 二、表结构说明
 
@@ -67,6 +68,8 @@
 - `business_date` (Date)：站点时区下的业务日期，幂等去重依据
 - `status`：`PENDING` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `INTERRUPTED` / `AUTH_EXPIRED` / `NEEDS_ACTION` / `RATE_LIMITED`
 - `params` (JSON)、`retries`、`worker_id`、`due_at`、`started_at`、`finished_at`
+- `needs_browser` / `needs_agent` (Boolean, 默认 false) — 执行线标记（创建执行时按插件任务声明打标，决定认领方）
+- `assigned_agent_id` (FK → agents.id, 可空) — Agent 执行线认领的 Agent
 - 索引：`ix_task_executions_status_due` (status, due_at) — Worker 领取任务；`ix_task_executions_dedupe` (account_id, task_name, business_date) — 幂等去重
 
 **去重与重试语义**：
@@ -106,15 +109,26 @@
 系统级 KV 设置，`key` 为主键，`value` 为 JSON。
 
 - `notifications` — 通知渠道与事件开关配置
-- `admin_auth` — 管理员认证配置
+- `admin_auth` — 旧版单管理员配置（已由 users 表取代，仅作为首次迁移种子来源保留）
+- `password_changed` — 是否已修改默认口令（bootstrap 提示用）
 - `scheduler_heartbeat` — scheduler 进程心跳（用于健康自检）
 
 ### agents
 
-本地 Agent 注册表，阶段 5 占位（当前不参与执行）。
+本地 Agent 注册表（拉取式执行通道，阶段 5b 已实现）。
 
-- `id` (PK)、`name` (unique)、`token_hash`
-- `status`（默认 `OFFLINE`）、`last_heartbeat`、`version`、`meta` (JSON)
+- `id` (PK)、`name` (unique)、`token_hash`（令牌仅存 SHA-256 摘要，明文只在创建/轮换响应中出现一次）
+- `status`：`ONLINE` / `OFFLINE`（超过 90 秒无心跳判定离线并中断其运行中任务）、`last_heartbeat`、`version`、`meta` (JSON：能力列表等)
+- 关联：`task_executions.assigned_agent_id` → 本表；删除 Agent 会中断其运行中执行，历史引用置空
+
+### users
+
+管理端用户（多管理员）。登录校验与 JWT 解析均走本表；停用/删除用户后其已有 JWT 立即失效。
+
+- `id` (PK)、`username` (unique)、`password_hash`（PBKDF2-SHA256）
+- `display_name`、`role`（当前均为 `admin`）、`enabled`
+- `last_login_at`、`created_at`
+- 首次启动时从 `DAILYKEEPER_ADMIN_USERNAME` / `DAILYKEEPER_ADMIN_PASSWORD`（或旧 `admin_auth` 设置中的口令哈希）迁移种子管理员
 
 ## 三、关系图
 
@@ -129,6 +143,7 @@ erDiagram
     task_executions ||--o| task_results : "execution_id (unique)"
     task_executions ||--o{ resource_snapshots : "execution_id (可空)"
     accounts ||--o{ resource_snapshots : "account_id"
+    agents ||--o{ task_executions : "assigned_agent_id (可空)"
 
     platforms {
         string id PK
@@ -181,6 +196,19 @@ erDiagram
         numeric value
         string text_value
     }
+    agents {
+        int id PK
+        string name UK
+        string token_hash
+        string status
+        datetime last_heartbeat
+    }
+    users {
+        int id PK
+        string username UK
+        string password_hash
+        bool enabled
+    }
 ```
 
 ## 四、与 plan.md 的差异说明
@@ -198,4 +226,6 @@ erDiagram
 | `credentials.account_id` UNIQUE | credentials | 每账号恰好一条凭据 |
 | `task_results.execution_id` UNIQUE | task_results | 结果与执行一一对应 |
 | `agents.name` UNIQUE | agents | Agent 名称唯一 |
+| `task_executions.assigned_agent_id` FK | task_executions → agents | Agent 执行线归属（删除 Agent 时置空） |
+| `users.username` UNIQUE | users | 用户名唯一 |
 | `system_settings.key` PK | system_settings | 设置键唯一 |

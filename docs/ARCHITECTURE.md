@@ -54,8 +54,8 @@ sequenceDiagram
 | 浏览器 | Playwright | 网页自动化（browser worker 专用镜像） |
 | 数据库 | SQLite | 初期部署 |
 | 迁移 | Alembic | 数据库版本管理 |
-| 前端 | Vue 3 | 管理界面（阶段 4 规划） |
-| UI | Element Plus | 管理组件（阶段 4 规划） |
+| 前端 | Vue 3 + TypeScript + Vite | Dashboard 管理界面（已交付） |
+| UI | Element Plus + ECharts | 管理组件与资源趋势图（已交付） |
 | 部署 | Docker Compose | 容器化 |
 | 通知 | Bark / Gotify / Webhook | 消息推送 |
 
@@ -66,7 +66,8 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     subgraph client["客户端"]
-        UI["Web Dashboard（规划中，阶段 4）"]
+        UI["Web Dashboard（Vue 3 + Element Plus）"]
+        MCP["MCP 客户端\n（Claude Desktop / Code，dk-mcp）"]
     end
 
     subgraph server["服务器（四个进程）"]
@@ -89,6 +90,7 @@ flowchart LR
     end
 
     UI -->|HTTP + JWT| API
+    MCP -->|HTTP + JWT| API
     SCH -->|创建执行 / 业务日期去重| DB
     WK -->|claim needs_browser=false / finalize| DB
     BW -->|claim needs_browser=true / finalize| DB
@@ -115,6 +117,9 @@ flowchart LR
 | `backend/app/browser_worker/` | Browser Worker 入口：领取 `needs_browser` 执行，共享 Chromium + 按账号 Context / storage state，调用插件执行并 finalize |
 | `backend/app/notifications/` | 通知模块：Bark / Gotify / Webhook 渠道与事件开关 |
 | `backend/app/services/registry_service.py` | 可信插件目录（Registry）：目录 API + 安装状态比对；不做自动安装、不执行第三方代码 |
+| `local-agent/` | 本地 Agent（dk-agent）：心跳 / 认领 / 上下文 / 回传，本地插件执行 |
+| `mcp-server/` | MCP Server（dk-mcp）：经 stdio 把查询与触发能力暴露给 AI 助手 |
+| `frontend/` | Web Dashboard（Vue 3 + Element Plus + ECharts）：平台 / 账号 / 任务 / 执行 / 资源 / Agent / Registry / 设置 |
 | `sdk/dailykeeper_sdk/` | 插件 SDK：PlatformPlugin 基类、TaskContext、TaskResult、注册表 |
 | `plugins/` | 官方插件包：demo / newapi / mteam / nexusphp，经 entry points 注册 |
 
@@ -152,8 +157,8 @@ flowchart LR
 
 ## 八、后续演进
 
-- **Agent 浏览器 / 桌面自动化能力**：本地 Agent 基础链路（心跳 / 认领 / 上下文 / 回传）已于阶段 5 交付；Agent 当前上报能力为 `["http"]`（`context.http` 可用），浏览器会话（`context.browser`）与桌面自动化待后续版本提供。
-- **MCP 服务**：将任务状态与资源数据通过 MCP 暴露给 AI 助手。
+- **Agent 浏览器 / 桌面自动化能力**：本地 Agent 基础链路（心跳 / 认领 / 上下文 / 回传）已于阶段 5 交付；Agent 当前上报能力为 `["http"]`（`context.http` 可用），浏览器会话（`context.browser`）与桌面自动化待后续版本提供（WorkBuddy 适配前先核实官方支持能力）。
+- **插件生态扩展**：Registry V1 为可信白名单目录（只读比对、不执行第三方代码）；后续再评估第三方插件的分发与安装流程。
 - **Redis / Celery**：并发量明显增加后再替换 SQLite 队列。
 - **PostgreSQL**：多实例部署或数据量增长后迁移，ORM 层已按可移植性编写。
 - **Alembic 迁移管理**：Alembic 已引入，后续 schema 变更统一走迁移脚本而非建表脚本。

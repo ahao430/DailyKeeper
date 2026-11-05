@@ -32,7 +32,7 @@ curl http://127.0.0.1:8000/healthz
 - **browser-worker**：`python -m app.browser_worker`，执行浏览器自动化任务（`needs_browser=true`），见第三节「browser-worker 服务」。
 - api / scheduler / worker 共用同一镜像（`deploy/Dockerfile.backend`，scheduler/worker 通过 `command` 覆盖启动命令）；browser-worker 使用内置 Playwright + Chromium 的专用镜像（`deploy/Dockerfile.browser`）。四个服务挂载同一个数据卷 `dk-data:/app/data`。
 
-**默认管理员**：`admin / admin123`（来自环境变量）。**首次登录后请立即通过 `PUT /api/auth/password` 修改密码。**
+**默认管理员**：`admin / admin123`（来自环境变量，首次启动自动写入 users 表）。**首次登录后请立即通过 `PUT /api/auth/password` 修改密码**；更多管理员可在 Dashboard「设置 → 用户管理」添加（`POST /api/users`），停用/删除后其会话立即失效。
 
 ## 二、环境变量
 
@@ -159,7 +159,7 @@ docker compose -f deploy/docker-compose.yml up -d
 - 通过系统设置 API 配置：`GET /api/system/notifications` 读取，`PUT /api/system/notifications` 更新渠道地址与事件开关。
 - 配置后调用 `POST /api/system/notifications/test` 发送测试通知，确认渠道可达。
 - 通知发送记录可在 `notifications` 数据中查看（`SENT` / `FAILED` / `SKIPPED`）。
-- 后续 Dashboard（阶段 4）将提供图形化配置界面。
+- Dashboard「设置」页提供图形化配置界面（渠道地址 + 事件开关 + 测试发送）。
 
 ## 九、M-Team 注意事项
 

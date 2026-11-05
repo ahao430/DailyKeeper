@@ -20,10 +20,10 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 | --- | --- | --- | --- |
-| POST | `/api/auth/login` | 公开 | 管理员登录，返回 JWT access token |
-| POST | `/api/auth/bootstrap` | 公开 | 首次初始化管理员（仅在尚未设置管理员时可用） |
-| GET | `/api/auth/me` | 需要 | 当前登录管理员信息 |
-| PUT | `/api/auth/password` | 需要 | 修改管理员密码 |
+| POST | `/api/auth/login` | 公开 | 用户登录（users 表校验，PBKDF2 口令哈希），返回 JWT access token；口令错误与账号被停用统一返回 401「用户名或密码错误」，避免账号枚举 |
+| POST | `/api/auth/bootstrap` | 公开 | 初始化状态探测：返回 `{default_credentials}`，仍在使用默认口令时 Dashboard 提示修改 |
+| GET | `/api/auth/me` | 需要 | 当前登录用户：`{username, display_name, role}` |
+| PUT | `/api/auth/password` | 需要 | 修改当前用户密码（需提供 `old_password`，新密码 ≥6 位） |
 
 ### 插件与平台
 
@@ -63,7 +63,7 @@
 | GET | `/api/executions` | 需要 | 执行记录列表（分页，支持按账号/任务/状态过滤） |
 | GET | `/api/executions/{execution_id}` | 需要 | 执行详情（含 task_results 结构化结果与 metrics） |
 
-> 端点无变化：执行列表/详情的条目新增 `needs_browser` 布尔字段，标记该执行是否需要浏览器自动化（由 browser-worker 认领执行）。 |
+> 执行条目包含 `needs_browser` / `needs_agent` 布尔字段与 `worker_id`：浏览器执行线由 browser-worker 认领（`needs_browser=true`），Agent 执行线由本地 Agent 拉取（`needs_agent=true`，其 `worker_id` 形如 `agent-<id>`）。
 
 ### 资源
 
@@ -93,6 +93,22 @@
 | POST | `/api/agent/tasks/{execution_id}/result` | Agent 令牌 | 回传结果并终结执行；迟到结果（如已被离线清扫置 INTERRUPTED）仍可上报并覆盖状态 |
 
 > 归属规则：context / result 仅允许认领该执行的 Agent 访问——其他 Agent（即使令牌有效）返回 **403**；执行记录不存在返回 404。
+
+### 用户管理（多管理员）
+
+| 方法 | 路径 | 认证 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/users` | 需要 | 用户列表（不含口令哈希）：username / display_name / role / enabled / last_login_at |
+| POST | `/api/users` | 需要 | 创建管理员账号（用户名唯一，密码 ≥6 位；重名返回 409「用户名已存在」） |
+| PUT | `/api/users/{user_id}` | 需要 | 修改显示名或启用状态；停用后该用户已有 JWT 立即失效（不能停用自己的账号） |
+| PUT | `/api/users/{user_id}/password` | 需要 | 管理员重置某用户的密码 |
+| DELETE | `/api/users/{user_id}` | 需要 | 删除用户（不能删除自己；至少保留一个用户） |
+
+### 插件目录 Registry
+
+| 方法 | 范围 | 认证 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/registry` | 需要 | 可信白名单插件目录：服务端内置目录（`backend/app/resources/registry.json`）与本地已安装插件比对，返回 `installed` / `installed_version` / `upgradable`。只读目录，不提供自动安装、不执行第三方代码（安全边界见 [ARCHITECTURE.md](ARCHITECTURE.md)） |
 
 ## 二、curl 完整流程示例
 
@@ -146,7 +162,7 @@ curl -s -X POST "$BASE/api/scheduled-tasks/1/run-now" \
   -H "Authorization: Bearer $TOKEN"
 
 # 7. 轮询执行记录，观察状态流转（PENDING → RUNNING → SUCCESS / FAILED / …）
-curl -s "$BASE/api/executions?account_id=1&page=1&page_size=20" \
+curl -s "$BASE/api/executions?account_id=1&limit=20" \
   -H "Authorization: Bearer $TOKEN"
 
 # 8. 查看执行详情（含 task_results）

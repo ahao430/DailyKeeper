@@ -16,6 +16,7 @@ It brings account management, daily check-in service, scheduled tasks, task exec
 - **Browser Automation** — Automate supported web workflows with Playwright via a dedicated browser worker.
 - **Local Agent** — Extend automation to local desktop applications via a pull-based local agent (`dk-agent`).
 - **MCP Server** — Expose check-in status, task triggering and resource balances to AI assistants via MCP (`dk-mcp`).
+- **Multi-user Management** — Multiple admin accounts with instant session revocation.
 - **Notifications** — Bark / Gotify / Webhook with per-event toggles.
 - **Self-hosted** — Deploy and manage your own automation service.
 
@@ -62,9 +63,9 @@ dailykeeper/
 ├── backend/        # DailyKeeper Server
 ├── sdk/            # DailyKeeper SDK
 ├── plugins/        # DailyKeeper Plugins
-├── local-agent/    # DailyKeeper Agent (phase 5, placeholder)
+├── local-agent/    # DailyKeeper Agent (dk-agent, pull-based desktop runner)
 ├── mcp-server/     # DailyKeeper MCP Server (dk-mcp, stdio)
-├── frontend/       # DailyKeeper Dashboard (phase 4, placeholder)
+├── frontend/       # DailyKeeper Dashboard (Vue 3 + Element Plus)
 ├── deploy/         # Docker Compose deployment (api / scheduler / worker / browser-worker)
 └── docs/           # PRD, ARCHITECTURE, PLUGIN_SDK, DATABASE, API, DEPLOYMENT
 ```
