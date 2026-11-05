@@ -63,6 +63,8 @@
 | GET | `/api/executions` | 需要 | 执行记录列表（分页，支持按账号/任务/状态过滤） |
 | GET | `/api/executions/{execution_id}` | 需要 | 执行详情（含 task_results 结构化结果与 metrics） |
 
+> 端点无变化：执行列表/详情的条目新增 `needs_browser` 布尔字段，标记该执行是否需要浏览器自动化（由 browser-worker 认领执行）。 |
+
 ### 资源
 
 | 方法 | 路径 | 认证 | 说明 |

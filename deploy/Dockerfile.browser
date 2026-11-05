@@ -1,0 +1,11 @@
+# Browser worker: needs_browser 任务的执行端（Playwright + 内置 Chromium）。
+# 基础镜像自带 playwright 及各浏览器依赖，切勿重新安装 playwright。
+FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+COPY sdk/ ./sdk/
+COPY plugins/ ./plugins/
+COPY backend/ ./backend/
+RUN pip install --no-cache-dir /app/sdk /app/plugins/demo /app/plugins/newapi /app/plugins/mteam /app/plugins/nexusphp /app/backend
+ENV DAILYKEEPER_BROWSER_HEADLESS=true
+CMD ["python", "-m", "app.browser_worker"]

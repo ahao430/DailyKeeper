@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.models.tables import ACCOUNT_STATUS_ACTIVE, ACCOUNT_STATUS_AUTH_EXPIRED
 from app.services import notification_service
+from dailykeeper_sdk.registry import plugin_registry
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,13 @@ async def create_execution(
     instance = account.instance
     bd = business_date_for(instance)
 
+    # 任务声明为需要浏览器时，执行记录打标，由 browser worker 认领
+    plugin = plugin_registry.get(instance.platform_id)
+    task_def = next(
+        (t for t in plugin.task_definitions if t.name == task_name), None
+    ) if plugin is not None else None
+    needs_browser = bool(task_def and task_def.requires_browser)
+
     if not force:
         existing_id = await session.scalar(
             select(TaskExecution.id)
@@ -98,6 +106,7 @@ async def create_execution(
         status="PENDING",
         params=params or {},
         retries=retries,
+        needs_browser=needs_browser,
         due_at=due_at or now_utc(),
     )
     session.add(execution)
@@ -106,13 +115,15 @@ async def create_execution(
 
 
 async def claim_pending(
-    session: AsyncSession, worker_id: str, limit: int
+    session: AsyncSession, worker_id: str, limit: int, *, browser: bool = False
 ) -> list[TaskExecution]:
     """Atomically claim up to ``limit`` due PENDING executions for one worker.
 
-    The claim is a conditional UPDATE (status PENDING -> RUNNING), so two
-    workers never take the same execution. Rows actually owned by this worker
-    are returned ordered by id. Does not commit; the caller commits.
+    ``browser=True`` claims only executions that need browser automation; the
+    regular worker claims the rest. The claim is a conditional UPDATE
+    (status PENDING -> RUNNING), so two workers never take the same execution.
+    Rows actually owned by this worker are returned ordered by id. Does not
+    commit; the caller commits.
     """
     now = now_utc()
     ids = (
@@ -121,6 +132,7 @@ async def claim_pending(
             .where(
                 TaskExecution.status == "PENDING",
                 TaskExecution.due_at.is_(None) | (TaskExecution.due_at <= now),
+                TaskExecution.needs_browser.is_(browser),
             )
             .order_by(TaskExecution.id)
             .limit(limit)
@@ -149,16 +161,19 @@ async def claim_pending(
     return list(claimed)
 
 
-async def recover_interrupted(session: AsyncSession) -> int:
+async def recover_interrupted(session: AsyncSession, *, browser: bool | None = None) -> int:
     """Mark RUNNING executions as INTERRUPTED after a service restart.
 
+    ``browser`` filters by execution type so one worker daemon restarting
+    never interrupts the other kind's in-flight executions (None = all).
     Each one gets a failure result record so the dashboard can show why it
     stopped. Commits the session and returns the number of recovered rows.
     """
     now = now_utc()
-    running = (
-        await session.scalars(select(TaskExecution).where(TaskExecution.status == "RUNNING"))
-    ).all()
+    query = select(TaskExecution).where(TaskExecution.status == "RUNNING")
+    if browser is not None:
+        query = query.where(TaskExecution.needs_browser.is_(browser))
+    running = (await session.scalars(query)).all()
     for execution in running:
         execution.status = "INTERRUPTED"
         execution.finished_at = now

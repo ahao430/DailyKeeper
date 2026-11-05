@@ -11,7 +11,7 @@ import logging
 from uuid import uuid4
 
 from app.core.config import Settings, get_settings
-from app.core.database import get_session_factory, init_engine
+from app.core.database import ensure_schema, get_session_factory, init_engine
 from app.core.security import get_cipher
 from app.services.plugin_runtime import load_plugins, run_execution
 from app.services.task_engine import claim_pending, recover_interrupted
@@ -42,9 +42,10 @@ async def main() -> None:
     init_engine(settings)
     session_factory = get_session_factory()
 
+    await ensure_schema()  # 与 API 进程并行启动时避免建表竞态
     async with session_factory() as session:
         await load_plugins(session)
-        recovered = await recover_interrupted(session)  # 内部已 commit
+        recovered = await recover_interrupted(session, browser=False)  # 仅恢复 HTTP 任务
     if recovered:
         logger.info("已恢复 %s 个因重启中断的任务", recovered)
 

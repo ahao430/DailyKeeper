@@ -150,6 +150,7 @@ class TaskExecution(Base):
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
     params: Mapped[dict] = mapped_column(JSON, default=dict)
     retries: Mapped[int] = mapped_column(Integer, default=0)
+    needs_browser: Mapped[bool] = mapped_column(Boolean, default=False)
     worker_id: Mapped[str] = mapped_column(String(64), default="")
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

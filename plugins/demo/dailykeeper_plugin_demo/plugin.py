@@ -70,11 +70,20 @@ class DemoPlugin(PlatformPlugin):
             produces_resources=False,
         ),
         TaskDefinition(name="get_user_info", description="查询用户信息", default_time="09:00"),
+        TaskDefinition(
+            name="browser_probe",
+            description="浏览器探针（打开页面读取标题，验证浏览器 Worker 链路）",
+            requires_browser=True,
+            default_time="10:00",
+            produces_resources=False,
+        ),
     ]
 
     async def execute(self, task_name: str, context: TaskContext) -> TaskResult:
         if task_name not in {t.name for t in self.task_definitions}:
             return TaskResult.failed(f"未知任务: {task_name}")
+        if task_name == "browser_probe":
+            return await self._execute_browser_probe(context)
 
         config = context.config or {}
         behavior = str(config.get("behavior") or "success")
@@ -109,6 +118,26 @@ class DemoPlugin(PlatformPlugin):
             if resources:
                 result.data["resources"] = resources
         return result
+
+    async def _execute_browser_probe(self, context: TaskContext) -> TaskResult:
+        """打开探针页面读取标题，验证浏览器执行链路（无外部网络依赖）。"""
+        if context.browser is None:
+            return TaskResult.needs_action("浏览器会话未注入（应由浏览器 Worker 执行）")
+        probe_url = str(
+            (context.config or {}).get("probe_url")
+            or "data:text/html,<html><head><title>dailykeeper-probe-ok</title></head><body>probe</body></html>"
+        )
+        try:
+            await context.browser.goto(probe_url)
+            title = await context.browser.page.title()
+        except Exception as exc:  # noqa: BLE001 - 浏览器异常统一转失败
+            return TaskResult.failed(f"浏览器探针失败: {exc}", retryable=True)
+        if "dailykeeper-probe" not in title:
+            return TaskResult.failed(f"浏览器探针标题异常: {title}", retryable=False)
+        return TaskResult.ok(
+            f"浏览器探针成功: {title}",
+            data={"title": title, "url": context.browser.url},
+        )
 
     def _build_resources(self, config: dict) -> list[dict]:
         """按账号配置构造资源快照（余额/积分，值 >0 时才生成）。"""

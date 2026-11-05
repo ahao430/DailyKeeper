@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_backoff_seconds: int = 60
 
+    # Browser automation (browser worker)
+    browser_headless: bool = True
+    browser_worker_concurrency: int = 2
+    browser_state_dir: str = ""  # 为空时使用 {data_dir}/browser_states
+    browser_slow_mo_ms: int = 0
+
     # HTTP server
     cors_origins: str = "*"
 

@@ -47,6 +47,7 @@ def _execution_detail(
         "business_date": execution.business_date.isoformat(),
         "status": execution.status,
         "retries": execution.retries,
+        "needs_browser": execution.needs_browser,
         "worker_id": execution.worker_id,
         "due_at": _dt(execution.due_at),
         "started_at": _dt(execution.started_at),

@@ -347,14 +347,19 @@ async def test_rate_limited_no_auto_retry(session_factory):
 
 @needs_mteam
 async def test_needs_action_browser_guard(session_factory):
-    """浏览器守卫：mteam 的 daily_checkin 声明 requires_browser → NEEDS_ACTION。"""
+    """浏览器守卫：浏览器任务须由 browser=True 认领；未注入页面 → NEEDS_ACTION。"""
     before_notification = await _max_notification_id(session_factory)
     chain = await _make_chain(session_factory, platform_id="mteam")
     await _make_task_due(session_factory, chain["task_id"])
 
     assert await _scan(session_factory) == 1
-    claimed = await _claim_all(session_factory)
-    assert len(claimed) == 1
+    # 普通 Worker 认领不到浏览器任务（分流），browser worker 才能认领
+    assert await _claim_all(session_factory) == []
+    async with session_factory() as session:
+        claimed_rows = await claim_pending(session, "w-browser", 10, browser=True)
+        await session.commit()
+        assert len(claimed_rows) == 1
+        claimed = [rows.id for rows in claimed_rows]
     await _run(session_factory, claimed[0])
 
     executions = await _executions_of(session_factory, chain["account_id"])

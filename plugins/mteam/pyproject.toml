@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dailykeeper-plugin-mteam"
-version = "0.1.0"
-description = "DailyKeeper M-Team（馒头）PT 站插件：API Key 查询用户信息与魔力"
+version = "0.2.0"
+description = "DailyKeeper M-Team（馒头）PT 站插件：API Key 查询用户信息与魔力；浏览器登录保活"
 requires-python = ">=3.12"
 dependencies = ["dailykeeper-sdk"]
 

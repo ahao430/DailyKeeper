@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.config import get_settings
-from app.core.database import get_session_factory, init_engine
+from app.core.database import ensure_schema, get_session_factory, init_engine
 from app.services.plugin_runtime import load_plugins
 from app.services.scheduler_service import scan_and_enqueue
 
@@ -35,6 +35,7 @@ async def main() -> None:
     init_engine(settings)
     session_factory = get_session_factory()
 
+    await ensure_schema()  # 与 API 进程并行启动时避免建表竞态
     async with session_factory() as session:
         await load_plugins(session)
 

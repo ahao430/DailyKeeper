@@ -8,7 +8,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dailykeeper_sdk import HttpClient, TaskContext, TaskResult
+from dailykeeper_sdk import BrowserSession, HttpClient, TaskContext, TaskResult
 from dailykeeper_sdk.registry import plugin_registry
 
 from app.core.config import Settings
@@ -59,8 +59,17 @@ async def build_context(
     execution: TaskExecution,
     cipher: CredentialCipher,
     settings: Settings,
+    *,
+    browser_page=None,
+    browser_context=None,
 ) -> TaskContext:
-    """Assemble the TaskContext for one execution (credentials, config, http, logger)."""
+    """Assemble the TaskContext for one execution (credentials, config, http, logger).
+
+    When the browser worker supplies a Playwright page/context pair, a
+    ``BrowserSession`` wrapper is attached as ``context.browser`` (duck-typed:
+    Playwright 本身不被 runtime 导入). Both default to ``None`` for regular
+    executions.
+    """
     account = await session.get(Account, execution.account_id)
     if account is None:
         raise ValueError(f"账号不存在: {execution.account_id}")
@@ -83,7 +92,7 @@ async def build_context(
     )
     http = HttpClient(base_url=instance.base_url, timeout=settings.http_timeout)
 
-    return TaskContext(
+    context = TaskContext(
         execution_id=execution.id,
         account_id=execution.account_id,
         platform_id=instance.platform_id,
@@ -95,6 +104,9 @@ async def build_context(
         http=http,
         logger=adapter,
     )
+    if browser_page is not None:
+        context.browser = BrowserSession(browser_page, browser_context)
+    return context
 
 
 def _scrub_secrets(message: str, secrets: list[str]) -> str:
@@ -111,8 +123,15 @@ async def run_execution(
     session_factory,
     cipher: CredentialCipher,
     settings: Settings,
+    browser_page=None,
+    browser_context=None,
 ) -> TaskExecution | None:
     """Run one claimed execution in a fresh session and finalize it.
+
+    ``browser_page`` / ``browser_context`` are supplied by the browser worker
+    for tasks declared with ``requires_browser`` (duck-typed Playwright
+    objects; the runtime never imports Playwright itself). Without a page, a
+    requires_browser task finalizes as NEEDS_ACTION instead of executing.
 
     Returns the execution after finalization, or the unchanged/None execution
     when it is missing or not in RUNNING state (i.e. not claimed by us).
@@ -137,7 +156,21 @@ async def run_execution(
                 if task_def is None:
                     result = TaskResult.failed(f"未知任务: {execution.task_name}")
                 elif task_def.requires_browser:
-                    result = TaskResult.needs_action("该任务需要浏览器自动化，将在后续版本支持")
+                    if browser_page is None:
+                        # 被普通 Worker 误领：标记需要人工处理，等待浏览器 Worker 接管
+                        result = TaskResult.needs_action(
+                            "该任务需要浏览器自动化，但当前 Worker 未提供浏览器会话"
+                        )
+                    else:
+                        result = await _execute_plugin(
+                            session,
+                            execution,
+                            plugin,
+                            cipher,
+                            settings,
+                            browser_page=browser_page,
+                            browser_context=browser_context,
+                        )
                 else:
                     result = await _execute_plugin(
                         session, execution, plugin, cipher, settings
@@ -153,12 +186,26 @@ async def _execute_plugin(
     plugin,
     cipher: CredentialCipher,
     settings: Settings,
+    *,
+    browser_page=None,
+    browser_context=None,
 ) -> TaskResult:
-    """Run the plugin task with a timeout, closing the HTTP client afterwards."""
+    """Run the plugin task with a timeout, closing the HTTP client afterwards.
+
+    The browser session (if any) is NOT closed here: the browser worker owns
+    the Playwright context lifecycle and persists its storage state first.
+    """
     context: TaskContext | None = None
     secrets: list[str] = []
     try:
-        context = await build_context(session, execution, cipher, settings)
+        context = await build_context(
+            session,
+            execution,
+            cipher,
+            settings,
+            browser_page=browser_page,
+            browser_context=browser_context,
+        )
         secrets = [str(v) for v in context.credentials.values() if isinstance(v, str)]
         async with asyncio.timeout(settings.task_timeout_seconds):
             return await plugin.execute(execution.task_name, context)

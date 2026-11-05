@@ -4,6 +4,10 @@ x-dk-build: &dk-build
   context: ..
   dockerfile: deploy/Dockerfile.backend
 
+x-dk-browser-build: &dk-browser-build
+  context: ..
+  dockerfile: deploy/Dockerfile.browser
+
 services:
   api:
     build: *dk-build
@@ -39,6 +43,16 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+
+  browser-worker:
+    build: *dk-browser-build
+    env_file: .env
+    volumes:
+      - dk-data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - api
+    mem_limit: 1g
 
   frontend:
     build:

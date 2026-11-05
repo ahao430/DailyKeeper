@@ -129,13 +129,44 @@ class HelloPlugin(PlatformPlugin):
 | `name` | str | （必填） | 任务名，对应 `execute(task_name)` 与 scheduled_tasks.task_name |
 | `description` | str | `""` | 任务中文描述 |
 | `description_en` | str | `""` | 任务英文描述 |
-| `requires_browser` | bool | `False` | 是否需要浏览器自动化；V1 引擎对这类任务**自动返回 NEEDS_ACTION**，等待浏览器执行版本 |
+| `requires_browser` | bool | `False` | 是否需要浏览器自动化；此类任务由 **browser worker**（Playwright）执行，见第六节「浏览器任务」 |
 | `default_time` | str | `"08:30"` | 创建定时任务时的默认执行时间（站点时区） |
 | `produces_resources` | bool | `True` | 任务是否产出资源快照（余额/积分/额度等） |
 | `idempotent` | bool | `True` | 是否幂等；**非幂等任务（如已提交的签到）失败后不会自动重试**，避免重复提交触发风控 |
 | `allow_concurrent` | bool | `False` | 是否允许同账号并发执行 |
 
-## 六、资源快照协议
+## 六、浏览器任务（requires_browser）
+
+任务声明 `requires_browser=True` 后，由 **browser worker**（`python -m app.browser_worker`，Playwright + Chromium 专用镜像）执行，普通 worker 不会认领。
+
+### 执行机制
+
+- **认领分流**：`create_execution` 按任务声明给执行行打 `needs_browser` 标记；普通 worker 只认领 `needs_browser=false` 的执行，browser worker 只认领 `needs_browser=true` 的执行。
+- **context.browser（BrowserSession）**：浏览器任务执行时，运行时把 Playwright 的 page/context 包装为 `BrowserSession`（`from dailykeeper_sdk import BrowserSession`，仅类型标注用；SDK 本身不依赖 playwright）注入 `context.browser`：
+
+| 成员 | 说明 |
+| --- | --- |
+| `session.page` / `session.context` | 原生 Playwright Page / BrowserContext（完整 API 可用） |
+| `session.url` | 当前页面 URL |
+| `await session.goto(url)` | 导航（默认 `domcontentloaded`） |
+| `await session.click(selector)` / `await session.fill(selector, value)` | 点击 / 填表（默认 15s 超时，可传 `timeout_ms`） |
+| `await session.text(selector=None)` | 页面全文或某选择器的文本 |
+| `await session.wait_for_selector(selector)` | 等待元素出现 |
+| `await session.screenshot(path)` | 整页截图 |
+
+- **登录态自动持久化**：browser worker 在**每次执行前**从 `{data_dir}/browser_states/account-{id}.json` 恢复 storage state（Cookie / localStorage），**执行后**（无论成败）再写回该文件。插件无需关心会话保存——首次执行完成真实登录后，后续执行自动复用登录态。同一账号的浏览器任务按账号加锁串行。
+- **误领守卫**：若 `requires_browser` 任务在无浏览器会话的环境下被执行（如被普通 worker 误领），运行时守卫直接 finalize 为 `NEEDS_ACTION`（消息含「未提供浏览器会话」），插件代码不会运行，等待 browser worker 接管重跑。插件内也应以 `context.browser is None` 兜底。
+- **插件不应关闭浏览器会话**：Context 的生命周期归 browser worker 所有（持久化状态后统一关闭），插件里不要调用 `session.close()` / `context.close()`。
+
+### 示例参考
+
+demo 插件的 `browser_probe` 任务（`plugins/demo/dailykeeper_plugin_demo/plugin.py`）是最小示例：打开 data: URL 探针页读取标题验证链路；M-Team 插件则是真实场景（登录保活 + TOTP）。
+
+### Playwright 可用性
+
+SDK 本身**不依赖** playwright——只有 browser worker 运行环境需要（`deploy/Dockerfile.browser` 镜像内置）。声明了 `requires_browser` 任务的插件，在本地调试时需自行安装：`pip install playwright && playwright install chromium`。
+
+## 七、资源快照协议
 
 任务产出的资源数据通过 `result.data["resources"]` 返回，引擎会持久化到 `resource_snapshots` 表：
 
@@ -155,7 +186,7 @@ result.data["resources"] = [
 - 一个任务可以返回多条资源快照。
 - 资源汇总通过 `GET /api/resources/summary` 查询。
 
-## 七、注册方式
+## 八、注册方式
 
 在插件 `pyproject.toml` 中声明 entry point，group 固定为 `dailykeeper.plugins`：
 
@@ -182,7 +213,7 @@ include = ["dailykeeper_hello*"]
 
 服务启动时引擎调用 `plugin_registry.load_entry_points()` 加载全部插件；损坏的 entry point 会被跳过并记录警告，不会拖垮启动。V1 采用**可信插件白名单**：只有随镜像安装的官方插件会被加载。
 
-## 八、本地调试方法
+## 九、本地调试方法
 
 ```bash
 # 1. 安装 SDK、你的插件与后端
@@ -201,15 +232,16 @@ uvicorn app.main:app --reload
 
 调试建议：先在插件 `execute()` 里用 `context.logger.debug()` 打印请求响应（注意不要打印凭据），再逐步接入真实站点。
 
-## 九、M-Team 特殊说明
+## 十、M-Team 特殊说明
 
 M-Team 提供 API Key 方式接入（站点控制台 → 实验室 → 存取令牌），但 **API 访问不计入登录活跃**。因此：
 
-- `mteam` 插件的 `daily_checkin`（签到）任务被声明为 `requires_browser=True`，在浏览器自动化版本落地前，引擎会持续返回 `NEEDS_ACTION` 并通知人工处理——这是预期行为，不是故障。
+- `mteam` 插件的 `daily_checkin`（保活签到）任务被声明为 `requires_browser=True`，由 browser worker 通过浏览器执行：凭据字典需包含 `username` / `password` / `totp_secret`（可另配 `api_key` 用于信息查询，可只配其一）。首次执行完成真实登录（含 TOTP），登录态由 browser worker 自动持久化，后续执行复用会话。
+- 部署 browser worker 前，该任务会因误领守卫进入 `NEEDS_ACTION`；部署后自动恢复为浏览器执行。
 - `get_user_info` 等信息查询类任务走 API Key 正常执行，可采集用户信息与资源快照。
 - 详细部署注意事项见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
-## 十、发布规范
+## 十一、发布规范
 
 - **可信插件白名单**：V1 只加载随镜像分发的官方插件；要接入新平台，将插件放入 `plugins/` 并加入镜像构建（`deploy/Dockerfile.*` 的 `pip install` 列表）。
 - **第三方插件本质是可执行代码**：普通 Python 插件不是安全沙箱，安装第三方插件等于在该机器上运行任意代码。请按 plan.md §11.3 安全设计审慎评估来源与行为，V1 不提供插件市场，后续再研究独立容器隔离。

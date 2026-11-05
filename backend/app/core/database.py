@@ -67,6 +67,20 @@ def get_engine() -> AsyncEngine:
     return _engine
 
 
+async def ensure_schema() -> None:
+    """Create all tables if missing (idempotent).
+
+    Daemons call this before touching data so they can start in parallel
+    with the API process; versioned upgrades remain Alembic's job.
+    """
+    from app.models.tables import Base
+
+    if _engine is None:
+        raise RuntimeError("数据库未初始化：请先调用 init_engine(settings)")
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 async def dispose_engine() -> None:
     """Dispose the engine (used on shutdown / between test sessions)."""
 

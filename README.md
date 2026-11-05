@@ -13,7 +13,7 @@ It brings account management, daily check-in service, scheduled tasks, task exec
 - **Account Management** — Manage auth credentials, sessions, and login status.
 - **Resource Monitoring** — Track balances, credits, quotas, usage, and expiration times.
 - **Extensible Plugin System** — Add new platforms and capabilities through a unified plugin SDK.
-- **Browser Automation** — Automate supported web workflows with Playwright (browser worker, later phase).
+- **Browser Automation** — Automate supported web workflows with Playwright via a dedicated browser worker.
 - **Local Agent** — Extend automation to local desktop applications and browsers (later phase).
 - **Notifications** — Bark / Gotify / Webhook with per-event toggles.
 - **Self-hosted** — Deploy and manage your own automation service.
@@ -23,7 +23,7 @@ It brings account management, daily check-in service, scheduled tasks, task exec
 - Backend: Python 3.12+, FastAPI
 - Monorepo: backend / sdk / plugins / local-agent / frontend / deploy / docs
 - Database: SQLite (PostgreSQL-ready)
-- Browser Automation: Playwright (later phase)
+- Browser Automation: Playwright (browser worker)
 - Task Scheduling: APScheduler
 - Deployment: Docker Compose
 - License: MIT
@@ -63,7 +63,7 @@ dailykeeper/
 ├── plugins/        # DailyKeeper Plugins
 ├── local-agent/    # DailyKeeper Agent (phase 5, placeholder)
 ├── frontend/       # DailyKeeper Dashboard (phase 4, placeholder)
-├── deploy/         # Docker Compose deployment
+├── deploy/         # Docker Compose deployment (api / scheduler / worker / browser-worker)
 └── docs/           # PRD, ARCHITECTURE, PLUGIN_SDK, DATABASE, API, DEPLOYMENT
 ```
 

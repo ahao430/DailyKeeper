@@ -6,9 +6,10 @@
 
 DailyKeeper 采用**模块化单体（Modular Monolith）**架构，而不是一开始就拆分微服务：清晰的模块边界 + 单一部署单元，避免前期运维成本。
 
-- **三进程模型**：`api`（uvicorn 提供 REST API）、`scheduler`（`python -m app.scheduler`，APScheduler 定时扫描）、`worker`（`python -m app.worker`，DB 队列消费者）。三个进程共用同一个镜像，通过 SQLite 数据库队列协作。
+- **四进程模型**：`api`（uvicorn 提供 REST API）、`scheduler`（`python -m app.scheduler`，APScheduler 定时扫描）、`worker`（`python -m app.worker`，DB 队列消费者）、`browser-worker`（`python -m app.browser_worker`，Playwright 浏览器任务执行端）。前三个进程共用同一个镜像；`browser-worker` 使用内置 Playwright + Chromium 的专用镜像（`deploy/Dockerfile.browser`），四个进程通过 SQLite 数据库队列协作。
 - **SQLite 数据库队列**：APScheduler 只负责产生定时任务，任务队列与执行状态保存在 `task_executions` 表中，Worker 通过数据库事务（乐观锁 claim）领取任务，天然保证领取不重复。
-- **双执行环境路线图**：V1 由服务器直接执行 API 类任务（HTTP 插件）；后续版本引入浏览器执行（Playwright）与本地 Agent（Mac/Windows），覆盖依赖本机登录态的桌面应用场景。
+- **认领分流（needs_browser）**：任务声明 `requires_browser=True` 时，创建执行即打上 `needs_browser` 标记；普通 worker 只认领 `needs_browser=False` 的执行，browser worker 只认领 `needs_browser=True` 的执行（`claim_pending(..., browser=True/False)`），两类 Worker 天然互不抢占。
+- **双执行环境**：API 类任务（HTTP 插件）由 worker 直接执行；浏览器任务由 browser worker 执行——进程生命周期内共享一个 Chromium 实例，每次执行使用独立 Browser Context，并在执行前后按账号持久化 storage state（Cookie / localStorage，位于 `{data_dir}/browser_states/account-{id}.json`），实现登录态跨执行复用。本地 Agent（Mac/Windows）仍为后续规划。
 
 ## 二、技术选型
 
@@ -20,7 +21,7 @@ DailyKeeper 采用**模块化单体（Modular Monolith）**架构，而不是一
 | 校验 | Pydantic 2.x | 配置与数据校验 |
 | 调度 | APScheduler | 定时任务 |
 | HTTP | HTTPX | API 请求 |
-| 浏览器 | Playwright | 网页自动化（规划中） |
+| 浏览器 | Playwright | 网页自动化（browser worker 专用镜像） |
 | 数据库 | SQLite | 初期部署 |
 | 迁移 | Alembic | 数据库版本管理 |
 | 前端 | Vue 3 | 管理界面（阶段 4 规划） |
@@ -38,31 +39,35 @@ flowchart LR
         UI["Web Dashboard（规划中，阶段 4）"]
     end
 
-    subgraph server["服务器（同一镜像，三个进程）"]
+    subgraph server["服务器（四个进程）"]
         API["api 进程\nFastAPI / uvicorn"]
         SCH["scheduler 进程\nAPScheduler"]
         WK["worker 进程\nDB 队列消费者"]
+        BW["browser-worker 进程\nPlaywright + Chromium"]
         DB[("SQLite\ndailykeeper.db")]
+        ST["browser_states/\n按账号 storage state"]
     end
 
-    subgraph runtime["Plugin Runtime（worker 内）"]
-        PR["插件执行上下文\n（解密凭据 / HTTP 客户端）"]
+    subgraph runtime["Plugin Runtime（worker / browser-worker 内）"]
+        PR["插件执行上下文\n（解密凭据 / HTTP 客户端 / 浏览器会话）"]
     end
 
     subgraph ext["外部"]
         P1["外部平台\n（M-Team / NewAPI / NexusPHP …）"]
-        BR["浏览器自动化（规划中）"]
         LA["Local Agent（规划中，阶段 5）"]
         N["Bark / Gotify / Webhook"]
     end
 
     UI -->|HTTP + JWT| API
     SCH -->|创建执行 / 业务日期去重| DB
-    WK -->|claim / finalize| DB
+    WK -->|claim needs_browser=false / finalize| DB
+    BW -->|claim needs_browser=true / finalize| DB
     API --> DB
     WK --> PR
+    BW --> PR
+    BW <-->|执行前恢复 / 执行后持久化| ST
     PR -->|HTTPX| P1
-    PR -.-> BR
+    PR -->|Playwright| P1
     PR -.-> LA
     WK -->|通知事件| N
 ```
@@ -76,6 +81,7 @@ flowchart LR
 | `backend/app/models/` | SQLAlchemy ORM 表定义（唯一的数据模型来源） |
 | `backend/app/scheduler/` | APScheduler 入口：扫描 scheduled_tasks，按业务日期创建 task_executions |
 | `backend/app/worker/` | Worker 入口：轮询领取 PENDING 任务，调用插件执行并 finalize |
+| `backend/app/browser_worker/` | Browser Worker 入口：领取 `needs_browser` 执行，共享 Chromium + 按账号 Context / storage state，调用插件执行并 finalize |
 | `backend/app/notifications/` | 通知模块：Bark / Gotify / Webhook 渠道与事件开关 |
 | `sdk/dailykeeper_sdk/` | 插件 SDK：PlatformPlugin 基类、TaskContext、TaskResult、注册表 |
 | `plugins/` | 官方插件包：demo / newapi / mteam / nexusphp，经 entry points 注册 |
@@ -83,11 +89,13 @@ flowchart LR
 ## 五、任务执行流程
 
 1. **Scheduler 扫描**：scheduler 进程按固定间隔（默认 30s）扫描 `scheduled_tasks`，对到期任务计算站点时区下的 `business_date`。
-2. **create_execution（业务日期去重）**：为该账号 + 任务 + 业务日期创建 `task_executions` 行；若已存在去重状态（`DEDUPE_STATUSES`）内的记录则跳过，保证同一天只执行一次。
-3. **Worker claim（乐观锁更新 claim）**：worker 进程轮询 PENDING 且到期的执行记录，通过条件更新（乐观锁）抢占任务并写入 `worker_id`，多 worker 不会重复领取。
-4. **Plugin Runtime 构建上下文（解密凭据）**：引擎加载该平台插件，解密 AES-GCM 凭据，组装 `TaskContext`（凭据、实例配置、base_url、HTTP 客户端、日志）。
-5. **plugin.execute**：调用插件的 `execute(task_name, context)`，返回统一的 `TaskResult`；`requires_browser` 的任务在 V1 直接返回 `NEEDS_ACTION` 等待浏览器自动化版本。
+2. **create_execution（业务日期去重 + needs_browser 打标）**：为该账号 + 任务 + 业务日期创建 `task_executions` 行；若已存在去重状态（`DEDUPE_STATUSES`）内的记录则跳过，保证同一天只执行一次。任务声明 `requires_browser=True` 时，执行行同时打上 `needs_browser` 标记。
+3. **Worker claim（乐观锁更新 claim，按 needs_browser 分流）**：worker 进程轮询 PENDING 且到期、`needs_browser=false` 的执行记录；browser worker 只认领 `needs_browser=true` 的记录。两者都通过条件更新（乐观锁）抢占任务并写入 `worker_id`，多 worker 不会重复领取。
+4. **Plugin Runtime 构建上下文（解密凭据）**：引擎加载该平台插件，解密 AES-GCM 凭据，组装 `TaskContext`（凭据、实例配置、base_url、HTTP 客户端、日志）；浏览器任务额外注入 `context.browser`（BrowserSession）。
+5. **plugin.execute**：调用插件的 `execute(task_name, context)`，返回统一的 `TaskResult`。`requires_browser` 的任务若被普通 worker 误领（无浏览器会话），运行时守卫直接 finalize 为 `NEEDS_ACTION`，等待 browser worker 接管重跑，不会盲目执行。
 6. **finalize（结果 / 账号状态 / 资源快照 / 通知 / 重试）**：保存 `task_results`；按结果更新账号状态（如 `AUTH_EXPIRED`）；持久化 `result.data["resources"]` 为资源快照；按事件开关发送通知；可重试失败按退避策略创建新的执行记录（`retries + 1`）。
+
+**浏览器任务流程（browser worker）**：browser worker 常驻一个共享 Chromium 实例；认领到 `needs_browser` 执行后，按账号加锁，从 `{data_dir}/browser_states/account-{id}.json` 恢复 storage state 创建独立 Browser Context（已有登录态则免登录），执行插件任务；执行结束（无论成败）先把 Context 的 storage state 持久化回该文件、再关闭 Context——首次执行完成真实登录后，后续执行即可复用登录态。
 
 ## 六、执行保护机制
 
@@ -104,6 +112,7 @@ flowchart LR
 ## 七、数据流与安全边界
 
 - **凭据加密**：Cookie / 密码 / API Key 使用 AES-GCM 加密存储，密文带 `enc1:` 版本前缀；加密密钥来自 `DAILYKEEPER_SECRET_KEY`（或独立的 `DAILYKEEPER_ENCRYPTION_KEY`），支持密钥轮换。
+- **浏览器登录态文件**：browser worker 按账号持久化的 storage state（`browser_states/account-{id}.json`）包含 Cookie / localStorage，属于敏感数据，只落在 `data_dir` 数据卷内，不进入数据库、不出现在日志与 API 响应中。
 - **日志脱敏**：任务记录与日志不落明文凭据，错误信息经过滤后入库。
 - **管理端认证**：API 使用 JWT 管理员认证（`/api/auth/login`），`/healthz` 等探活端点公开。
 - **插件白名单**：V1 仅加载随镜像分发的官方插件（demo / newapi / mteam / nexusphp），即「可信插件白名单」；插件之间不共享认证信息。
