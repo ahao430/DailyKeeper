@@ -13,6 +13,7 @@
       show-icon
       :closable="false"
       title="插件是可执行代码。V1 采用可信白名单目录：以下为官方维护插件，安装/升级请在服务器环境手动执行命令后重启服务。请勿安装不可信来源的插件。"
+      description="各插件的详细用法（凭据从哪获取、任务说明、配置项、常见问题）见 docs/PLUGINS.md —— 官方插件使用指南。"
     />
 
     <el-row v-loading="loading" :gutter="16">

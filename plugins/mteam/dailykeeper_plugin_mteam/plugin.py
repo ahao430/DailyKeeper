@@ -233,7 +233,11 @@ class MTeamPlugin(PlatformPlugin):
 
         api_key = str((context.credentials or {}).get("api_key") or "")
         if not api_key:
-            return TaskResult.auth_expired("未配置 API Key（控制台 → 实验室 → 存取令牌）")
+            return TaskResult.auth_expired(
+                "未配置 API Key（控制台 → 实验室 → 存取令牌）。"
+                "注意：本检测走 API 查询，只验证 api_key；"
+                "用户名/密码凭据会在每日签到任务（浏览器登录）中验证"
+            )
 
         config = context.config or {}
         http.set_default_headers({"x-api-key": api_key})
@@ -351,7 +355,10 @@ class MTeamPlugin(PlatformPlugin):
             if totp_input is not None:
                 if not totp_secret:
                     return TaskResult.auth_expired(
-                        "登录需要两步验证，但凭据未配置 totp_secret"
+                        "登录需要两步验证，但凭据未配置 totp_secret："
+                        "编辑账号 → 凭据字段“两步验证密钥”，填入绑定验证器时的"
+                        "Base32 密钥（如 JBSWY3DPEHPK3PXP；未保存过可在站点"
+                        "两步验证设置里重新绑定获取）"
                     )
                 try:
                     await totp_input.fill(_totp_now(totp_secret), timeout=5000)

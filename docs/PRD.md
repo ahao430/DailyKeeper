@@ -98,6 +98,7 @@ DailyKeeper 解决四类问题：
 - [plan.md](../plan.md) — 原始项目规划（V1.0）
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 系统架构与模块边界
 - [PLUGIN_SDK.md](PLUGIN_SDK.md) — 插件开发指南
+- [PLUGINS.md](PLUGINS.md) — 官方插件使用指南
 - [DATABASE.md](DATABASE.md) — 数据库设计
 - [API.md](API.md) — REST API 说明
 - [DEPLOYMENT.md](DEPLOYMENT.md) — 部署指南

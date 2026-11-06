@@ -97,6 +97,7 @@ dailykeeper/
 ## 文档
 
 - [项目主页](https://ahao430.github.io/DailyKeeper/) —— 自动部署到 GitHub Pages
+- [PLUGINS](docs/PLUGINS.md) —— 官方插件使用指南（凭据获取、任务说明、配置项）
 - [PRD](docs/PRD.md) —— 产品需求与功能边界
 - [ARCHITECTURE](docs/ARCHITECTURE.md) —— 系统架构与模块边界
 - [PLUGIN_SDK](docs/PLUGIN_SDK.md) —— 插件接口、注册与开发指南
