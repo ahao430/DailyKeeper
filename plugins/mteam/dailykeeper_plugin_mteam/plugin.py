@@ -34,9 +34,9 @@ _DEFAULT_USERNAME_SELECTOR = (
     "input[placeholder*='用户名'], input[name='username'], input[type='text']"
 )
 _DEFAULT_PASSWORD_SELECTOR = "input[type='password']"
-_DEFAULT_LOGIN_BUTTON_SELECTOR = "button:has-text('登录'), button:has-text('登 录')"
+_DEFAULT_LOGIN_BUTTON_SELECTOR = "button:has-text('登 錄'), button:has-text('登錄'), button:has-text('登录'), button:has-text('登 录')"
 _DEFAULT_TOTP_SELECTOR = (
-    "input[placeholder*='验证'], input[name='totp'], input[inputmode='numeric']"
+    "input[placeholder*='驗證'], input[placeholder*='验证'], input[name='totp'], input[inputmode='numeric']"
 )
 
 
