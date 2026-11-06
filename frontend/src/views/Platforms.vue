@@ -156,9 +156,9 @@
           <el-form-item label="凭据字段">
             <DynamicForm
               :schema="activeCredentialSchema"
-              :model-value="accountForm.credential_values"
+              :model-value="accountForm.credential"
               prefix="credential"
-              @update:model-value="accountForm.credential_values = $event"
+              @update:model-value="accountForm.credential = $event"
             />
           </el-form-item>
         </template>
@@ -505,7 +505,7 @@ const accountForm = reactive({
   notes: "",
   config: {} as Record<string, unknown>,
   credential_kind: "cookie",
-  credential_values: {} as Record<string, unknown>,
+  credential: {} as Record<string, unknown>,
   credential_rows: [{ key: "", value: "" }] as CredentialRow[],
 });
 
@@ -553,7 +553,7 @@ function openCreateAccount(instance: PlatformInstance): void {
   accountForm.notes = "";
   accountForm.config = buildFormDefaults(activeAccountSchema.value);
   accountForm.credential_kind = credentialKindOptions.value[0]?.value ?? "cookie";
-  accountForm.credential_values = buildFormDefaults(activeCredentialSchema.value);
+  accountForm.credential = buildFormDefaults(activeCredentialSchema.value);
   accountForm.credential_rows = [{ key: "", value: "" }];
   accountDialogVisible.value = true;
 }
@@ -567,7 +567,7 @@ function openEditAccount(row: Account): void {
   accountForm.config = { ...row.config };
   accountForm.credential_kind = row.credential_kind ?? credentialKindOptions.value[0]?.value ?? "cookie";
   // 凭据明文不出后端，编辑时空值表示不修改
-  accountForm.credential_values = buildFormDefaults(activeCredentialSchema.value);
+  accountForm.credential = buildFormDefaults(activeCredentialSchema.value);
   accountForm.credential_rows = [{ key: "", value: "" }];
   accountDialogVisible.value = true;
 }
@@ -575,7 +575,7 @@ function openEditAccount(row: Account): void {
 function buildCredentialData(): Record<string, string> {
   const data: Record<string, string> = {};
   for (const field of activeCredentialSchema.value) {
-    const value = accountForm.credential_values[field.name];
+    const value = accountForm.credential[field.name];
     if (value !== undefined && value !== null && String(value) !== "") {
       data[field.name] = String(value);
     }
