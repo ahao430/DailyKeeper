@@ -1,6 +1,6 @@
 # DailyKeeper PRD（产品需求文档）
 
-> DailyKeeper 是一个自托管的多平台自动化平台：统一管理多平台账号凭据，自动执行每日签到等例行任务，采集余额/积分/额度等资源数据，并通过 Bark / Gotify / Webhook 推送通知。
+> DailyKeeper 是一个自托管的多平台自动化平台：统一管理多平台账号凭据，自动执行每日签到等例行任务，采集余额/积分/额度等资源数据，并通过 Bark / ntfy / Gotify / 邮件 / Webhook 推送通知。
 >
 > 本文描述 V1 的产品定位、功能边界与验收标准。系统架构见 [ARCHITECTURE.md](ARCHITECTURE.md)，数据库设计见 [DATABASE.md](DATABASE.md)，接口清单见 [API.md](API.md)。
 
@@ -42,7 +42,7 @@ DailyKeeper 解决四类问题：
 - 每日任务调度（独立 Scheduler 进程 + 数据库队列 + Worker 进程）。
 - 任务执行记录（含按业务日期的幂等去重）。
 - 余额、积分、额度等数据采集（资源快照）。
-- Bark、Gotify、Webhook 通知。
+- Bark、Gotify、Webhook 通知（V1 已扩展：ntfy 与邮件 SMTP 渠道，见 3.2）。
 - 插件注册和扩展（SDK + Entry Points）。
 - Docker 部署（docker compose 一键部署）。
 
@@ -54,6 +54,7 @@ DailyKeeper 解决四类问题：
 - MCP Server（dk-mcp）：AI 助手接入（查询状态 / 触发任务 / 资源查询）。
 - 插件目录 Registry V1（可信白名单目录 + 安装状态比对，不自动执行第三方代码）。
 - 多用户管理 V1：多管理员账号（创建/停用/删除/重置密码，令牌随停用即时失效）。
+- 通知渠道扩展：新增 ntfy（手机订阅 topic 即可推送）与邮件（SMTP，SSL/STARTTLS）两个渠道。
 
 ### 3.3 后续版本
 

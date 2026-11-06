@@ -154,12 +154,16 @@ docker compose -f deploy/docker-compose.yml up -d
 
 ## 八、通知配置
 
-通知支持 Bark / Gotify / Webhook 三种渠道，按事件独立开关（每日签到成功默认可选，其余异常事件默认开启）。
+通知支持 Bark / ntfy / Gotify / 邮件（SMTP）/ Webhook 五种渠道，按事件独立开关（每日签到成功默认可选，其余异常事件默认开启）。
 
-- 通过系统设置 API 配置：`GET /api/system/notifications` 读取，`PUT /api/system/notifications` 更新渠道地址与事件开关。
+- 通过系统设置 API 配置：`GET /api/system/settings`（返回的 `notifications` 字段）读取，`PUT /api/system/settings/notifications` 更新渠道与事件开关（Dashboard「设置」页可视化编辑）。
 - 配置后调用 `POST /api/system/notifications/test` 发送测试通知，确认渠道可达。
 - 通知发送记录可在 `notifications` 数据中查看（`SENT` / `FAILED` / `SKIPPED`）。
 - Dashboard「设置」页提供图形化配置界面（渠道地址 + 事件开关 + 测试发送）。
+
+**ntfy 渠道**（手机推送最简方案）：手机安装 ntfy App（iOS / Android），订阅一个自选 topic（建议带随机后缀，如 `dk-notify-9f2k`），在 DailyKeeper 中配置同名 topic 即可；默认官方服务器 `https://ntfy.sh`，也可指向自建 ntfy；topic 开启访问控制时填访问令牌。
+
+**邮件渠道**（SMTP）：填 SMTP 服务器/端口/账号/密码/收件人；465 端口用 SSL（默认），587 端口关闭 SSL（自动 STARTTLS）；QQ 邮箱 / Gmail 需使用授权码或应用专用密码。
 
 ## 九、M-Team 注意事项
 

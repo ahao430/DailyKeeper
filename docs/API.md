@@ -10,10 +10,8 @@
 | --- | --- | --- | --- |
 | GET | `/healthz` | 公开 | 健康检查（容器 healthcheck 使用） |
 | GET | `/api/system/info` | 需要 | 系统信息：版本、环境、插件数量、调度器心跳、在线 Agent 数（`agents_online`）等 |
-| GET | `/api/system/settings` | 需要 | 读取系统设置 |
-| PUT | `/api/system/settings` | 需要 | 更新系统设置（JSON 合并写入） |
-| GET | `/api/system/notifications` | 需要 | 读取通知渠道与事件开关配置 |
-| PUT | `/api/system/notifications` | 需要 | 更新 Bark / Gotify / Webhook 配置与事件开关 |
+| GET | `/api/system/settings` | 需要 | 读取系统设置（含通知渠道与事件开关配置） |
+| PUT | `/api/system/settings/notifications` | 需要 | 更新 Bark / ntfy / Gotify / 邮件 / Webhook 渠道配置与事件开关 |
 | POST | `/api/system/notifications/test` | 需要 | 发送测试通知，验证渠道配置 |
 
 ### 认证
