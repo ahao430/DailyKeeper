@@ -256,6 +256,8 @@ export interface CheckResponse {
 export interface RunNowResponse {
   created: boolean;
   execution_id: number | null;
+  /** created 已入队；blocked 执行中拦截；confirm 今日已成功需确认 */
+  action: "created" | "blocked" | "confirm";
   message: string;
 }
 

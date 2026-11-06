@@ -14,7 +14,7 @@ from dailykeeper_sdk.registry import plugin_registry
 from app.api.deps import get_current_admin, get_db
 from app.core.timeutil import next_occurrence, now_utc, parse_hhmm
 from app.models import Account, ScheduledTask, TaskExecution
-from app.services.task_engine import create_execution
+from app.services.task_engine import create_execution, today_dedupe_status
 
 router = APIRouter(
     prefix="/api/scheduled-tasks", tags=["tasks"], dependencies=[Depends(get_current_admin)]
@@ -146,6 +146,29 @@ async def run_task_now(
     if task.task_name not in declared:
         raise HTTPException(status_code=422, detail=f"该平台不支持任务: {task.task_name}")
 
+    # 手动执行的去重策略：执行中拦截；失败类状态直接重跑；仅已成功需确认。
+    # （调度器自动触发仍走 create_execution 的完整去重，不经过这里）
+    action = "created"
+    if not force:
+        status = await today_dedupe_status(session, account, task.task_name)
+        if status is not None:
+            if status in ("PENDING", "RUNNING"):
+                return {
+                    "created": False,
+                    "execution_id": None,
+                    "action": "blocked",
+                    "message": "该任务今日已有执行进行中，请等当前执行结束后再试",
+                }
+            if status == "SUCCESS":
+                return {
+                    "created": False,
+                    "execution_id": None,
+                    "action": "confirm",
+                    "message": "今日已成功执行过，确认要再次执行吗？",
+                }
+            # 失败类状态（AUTH_EXPIRED / NEEDS_ACTION / …）：手动重跑直接放行
+            force = True
+
     execution = await create_execution(
         session,
         account,
@@ -159,9 +182,10 @@ async def run_task_now(
         return {
             "created": False,
             "execution_id": None,
+            "action": "blocked",
             "message": "今日已存在待执行/进行中/已成功的执行记录，跳过重复创建",
         }
-    return {"created": True, "execution_id": execution.id, "message": "已加入执行队列"}
+    return {"created": True, "execution_id": execution.id, "action": action, "message": "已加入执行队列"}
 
 
 class UpdateScheduledTaskRequest(BaseModel):

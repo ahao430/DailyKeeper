@@ -61,6 +61,25 @@ def business_date_for(instance: PlatformInstance) -> date:
     return date_in_tz(instance.timezone)
 
 
+async def today_dedupe_status(
+    session: AsyncSession, account: Account, task_name: str
+) -> str | None:
+    """Status of today's dedupe-state execution for (account, task); None when free to run."""
+    bd = business_date_for(account.instance)
+    row = await session.execute(
+        select(TaskExecution.status)
+        .where(
+            TaskExecution.account_id == account.id,
+            TaskExecution.task_name == task_name,
+            TaskExecution.business_date == bd,
+            TaskExecution.status.in_(DEDUPE_STATUSES),
+        )
+        .order_by(TaskExecution.id.desc())
+        .limit(1)
+    )
+    return row.scalar_one_or_none()
+
+
 async def create_execution(
     session: AsyncSession,
     account: Account,

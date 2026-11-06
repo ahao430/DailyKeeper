@@ -182,5 +182,5 @@ docker compose -f deploy/docker-compose.yml up -d
 | SQLite `database is locked` | 高并发写入时会偶发；可增大超时（连接串加 `?timeout=30`，对应 busy_timeout），或降低 `DAILYKEEPER_WORKER_CONCURRENCY`；数据量与并发上去后迁移 PostgreSQL |
 | 任务时区不对 | 定时时间按平台实例的 `timezone` 字段计算业务日期；检查实例配置与 `DAILYKEEPER_TIMEZONE` |
 | scheduler 未产生任务 | `GET /api/system/info` 查看 scheduler 心跳；确认 scheduled_tasks 已启用且 `time_of_day` 已过 |
-| run-now 提示跳过 | 业务日期去重：同日该任务已处于 `SUCCESS` 等去重状态；`SKIPPED/FAILED/INTERRUPTED` 允许同日重跑 |
+| run-now 提示跳过 | 仅当该任务已有执行进行中；失败类状态（登录失效/需人工等）手动重跑会直接放行，今日已成功会弹确认框 |
 | 浏览器任务一直 `NEEDS_ACTION` | `docker compose -f deploy/docker-compose.yml ps browser-worker` 确认 browser-worker 已启动；结果消息含「未提供浏览器会话」即守卫拦截（未部署 browser-worker 所致），部署后新任务自动走浏览器执行，当日该执行可删除后 run-now 重跑 |
