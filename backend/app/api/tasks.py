@@ -124,7 +124,11 @@ async def create_scheduled_task(payload: CreateScheduledTaskRequest, session: As
 
 
 @router.post("/{task_id}/run-now")
-async def run_task_now(task_id: int, session: AsyncSession = Depends(get_db)) -> dict:
+async def run_task_now(
+    task_id: int,
+    force: bool = Query(False, description="忽略业务日期去重，强制创建新执行"),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
     """Enqueue one execution immediately (subject to business-date dedupe)."""
     task = await session.get(ScheduledTask, task_id)
     if task is None:
@@ -149,6 +153,7 @@ async def run_task_now(task_id: int, session: AsyncSession = Depends(get_db)) ->
         scheduled_task_id=task.id,
         params=task.params,
         due_at=now_utc(),
+        force=force,
     )
     if execution is None:
         return {

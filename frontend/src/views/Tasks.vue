@@ -255,7 +255,19 @@ async function toggleEnabled(row: ScheduledTask, value: boolean): Promise<void> 
 async function runNow(row: ScheduledTask): Promise<void> {
   runningId.value = row.id;
   try {
-    const response = await runScheduledTaskNow(row.id);
+    let response = await runScheduledTaskNow(row.id);
+    if (!response.created) {
+      // 今日已有执行记录：提供强制重跑（修复凭据/配置后常见需求）
+      const confirmed = await ElMessageBox.confirm(
+        `今日已有一条执行记录（${response.message.replace("跳过重复创建", "").trim()}）。要忽略去重强制重跑一次吗？`,
+        "强制重跑",
+        { type: "warning", confirmButtonText: "强制重跑", cancelButtonText: "取消" },
+      ).catch(() => false);
+      if (!confirmed) {
+        return;
+      }
+      response = await runScheduledTaskNow(row.id, true);
+    }
     ElMessage.success(response.message);
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "触发执行失败"));

@@ -194,8 +194,12 @@ export function deleteScheduledTask(taskId: number): Promise<OkResponse> {
   return unwrap(client.delete<OkResponse>(`/scheduled-tasks/${taskId}`));
 }
 
-export function runScheduledTaskNow(taskId: number): Promise<RunNowResponse> {
-  return unwrap(client.post<RunNowResponse>(`/scheduled-tasks/${taskId}/run-now`));
+export function runScheduledTaskNow(taskId: number, force = false): Promise<RunNowResponse> {
+  return unwrap(
+    client.post<RunNowResponse>(
+      `/scheduled-tasks/${taskId}/run-now${force ? "?force=true" : ""}`,
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
