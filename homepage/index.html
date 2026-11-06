@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0f1e">
+<meta name="description" content="自托管的多账号自动化平台：统一管理多平台账号凭据，自动执行每日签到等例行任务，采集余额与额度数据，并把自动化能力延伸到网站与桌面应用。">
+<title>DailyKeeper — 一个平台，搞定所有每日任务</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Ctext x='16' y='21.5' font-family='Arial,Helvetica,sans-serif' font-size='13' font-weight='bold' text-anchor='middle' fill='%23ffffff'%3EDK%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a0f1e;
+  --card:rgba(255,255,255,.035);
+  --border:rgba(255,255,255,.09);
+  --text:#e6eaf2;
+  --muted:#97a1b7;
+  --indigo:#818cf8;
+  --cyan:#22d3ee;
+  --amber:#fbbf24;
+  --green:#34d399;
+  --accent:linear-gradient(135deg,#818cf8,#22d3ee);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.container{max-width:1120px;margin:0 auto;padding:0 24px}
+section{padding:72px 0}
+section[id]{scroll-margin-top:84px}
+.eyebrow{display:inline-block;text-transform:uppercase;font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--cyan);margin-bottom:12px}
+h2{font-size:32px;line-height:1.2;letter-spacing:-.02em;font-weight:700}
+.sub{color:var(--muted);font-size:17px;margin-top:10px}
+.section-head{margin-bottom:44px;max-width:760px}
+
+/* ===== nav ===== */
+.nav{position:sticky;top:0;z-index:100;background:rgba(10,15,30,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.nav-links{display:flex;align-items:center;gap:26px}
+.nav-links a{color:var(--muted);font-size:14px;transition:color .15s}
+.nav-links a:hover{color:var(--text)}
+
+/* ===== buttons ===== */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:10px;font-size:14.5px;font-weight:600;transition:border-color .15s,transform .15s,opacity .15s}
+.btn-primary{background:var(--accent);color:#0a0f1e}
+.btn-primary:hover{opacity:.92;transform:translateY(-1px)}
+.btn-ghost{border:1px solid var(--border);background:transparent;color:var(--text)}
+.btn-ghost:hover{border-color:rgba(129,140,248,.45)}
+.btn-sm{padding:8px 14px;font-size:13.5px}
+
+/* ===== hero ===== */
+.hero{padding:88px 0 72px}
+.hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:56px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:9px;padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:var(--card);color:var(--muted);font-size:12.5px;font-weight:500;margin-bottom:22px}
+.badge-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
+h1{font-size:52px;line-height:1.08;letter-spacing:-.025em;font-weight:800}
+.grad-text{background:linear-gradient(90deg,#a5b4fc,#67e8f9);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.lead{color:var(--muted);font-size:17.5px;line-height:1.65;margin-top:20px;max-width:560px}
+.hero-ctas{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap}
+.hero-meta{margin-top:22px;font-size:13px;color:var(--muted);letter-spacing:.01em}
+
+/* ===== terminal ===== */
+.terminal{background:rgba(0,0,0,.38);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.terminal-bar{display:flex;align-items:center;position:relative;padding:12px 16px;border-bottom:1px solid var(--border)}
+.dots{display:flex;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
+.terminal-title{position:absolute;left:50%;transform:translateX(-50%);font-size:12px;color:var(--muted)}
+.terminal pre{padding:20px 22px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;line-height:1.75;overflow-x:auto;color:var(--text)}
+.t-c{color:var(--cyan)}
+.t-i{color:var(--indigo)}
+.t-g{color:var(--green)}
+.t-m{color:var(--muted)}
+
+/* ===== cards ===== */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;transition:border-color .2s ease,transform .2s ease}
+.card:hover{border-color:rgba(129,140,248,.45);transform:translateY(-2px)}
+
+/* ===== features ===== */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.feat{padding:26px}
+.feat-emoji{font-size:26px;line-height:1;margin-bottom:14px}
+.feat h3{font-size:16px;font-weight:600;margin-bottom:8px;letter-spacing:-.01em}
+.feat p{color:var(--muted);font-size:14px;line-height:1.6}
+
+/* ===== lanes ===== */
+.lanes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.lane{padding:28px;--lane:var(--indigo);--lane-bg:rgba(129,140,248,.08);--lane-bd:rgba(129,140,248,.4)}
+.lane-http{--lane:#818cf8;--lane-bg:rgba(129,140,248,.08);--lane-bd:rgba(129,140,248,.4)}
+.lane-browser{--lane:#22d3ee;--lane-bg:rgba(34,211,238,.08);--lane-bd:rgba(34,211,238,.4)}
+.lane-agent{--lane:#fbbf24;--lane-bg:rgba(251,191,36,.08);--lane-bd:rgba(251,191,36,.4)}
+.lane-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--lane);background:var(--lane-bg);border:1px solid var(--lane-bd);padding:5px 12px;border-radius:999px}
+.lane-desc{margin-top:16px;font-size:15px;line-height:1.6;color:var(--text)}
+.bullets{list-style:none;margin-top:18px;display:grid;gap:10px}
+.bullets li{position:relative;padding-left:18px;color:var(--muted);font-size:14px;line-height:1.55}
+.bullets li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--lane)}
+
+/* ===== quick start ===== */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:26px}
+.step{padding:26px}
+.step-num{width:36px;height:36px;border-radius:11px;background:var(--accent);color:#0a0f1e;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.step h3{font-size:17px;font-weight:600;margin-bottom:8px}
+.step p{color:var(--muted);font-size:14px;line-height:1.6}
+.codeblock{background:rgba(0,0,0,.38);border:1px solid var(--border);border-radius:14px;padding:24px 28px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:13.5px;line-height:1.85;overflow-x:auto;color:var(--text)}
+
+/* ===== plugins ===== */
+.chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.chip{padding:20px 22px}
+.chip code{font-size:14.5px;font-weight:600;color:var(--cyan)}
+.chip p{color:var(--muted);font-size:13.5px;margin-top:6px;line-height:1.55}
+.plugin-cta{display:flex;align-items:center;gap:8px;margin-top:14px;padding:20px 24px;font-weight:600;font-size:15px}
+.acc{color:var(--indigo)}
+
+/* ===== docs ===== */
+.docs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.doc-card{padding:22px;display:block}
+.doc-card h3{font-size:15.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.doc-arrow{color:var(--muted);font-weight:400;transition:color .15s}
+.doc-card:hover .doc-arrow{color:var(--indigo)}
+.doc-card p{color:var(--muted);font-size:13.5px;margin-top:6px;line-height:1.55}
+
+/* ===== footer ===== */
+.footer{border-top:1px solid var(--border);margin-top:24px;padding:30px 0 40px}
+.footer-inner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:13.5px}
+.footer a{color:var(--muted);transition:color .15s}
+.footer a:hover{color:var(--text)}
+
+/* ===== responsive ===== */
+@media (max-width:900px){
+  .hero{padding:56px 0 64px}
+  .hero-grid{grid-template-columns:1fr;gap:40px}
+  h1{font-size:40px}
+}
+@media (max-width:720px){
+  .nav-links{display:none}
+  h1{font-size:34px}
+  h2{font-size:27px}
+  section{padding:56px 0}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== 1. NAV ===== -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#6366f1"/><text x="14" y="18.6" font-family="ui-sans-serif,system-ui,-apple-system,Arial,sans-serif" font-size="11.5" font-weight="bold" text-anchor="middle" fill="#ffffff">DK</text></svg>
+      DailyKeeper
+    </div>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#lanes">执行线</a>
+      <a href="#quick-start">快速开始</a>
+      <a href="#plugins">插件</a>
+      <a href="#docs">文档</a>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="https://github.com/ahao430/DailyKeeper" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</nav>
+
+<!-- ===== 2. HERO ===== -->
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <span class="badge"><span class="badge-dot"></span>自托管 · 开源 · MIT</span>
+      <h1>一个平台，<br><span class="grad-text">搞定所有每日任务。</span></h1>
+      <p class="lead">自托管的多账号自动化平台：统一管理多平台账号凭据，自动执行每日签到等例行任务，采集余额与额度数据，并把自动化能力延伸到网站与桌面应用。</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href="#quick-start">立即开始</a>
+        <a class="btn btn-ghost" href="https://github.com/ahao430/DailyKeeper" target="_blank" rel="noopener">在 GitHub 查看 ↗</a>
+      </div>
+      <p class="hero-meta">FastAPI · Playwright · Vue 3 · SQLite · Docker Compose</p>
+    </div>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div>
+        <span class="terminal-title">deploy.sh</span>
+      </div>
+<pre><span class="t-c">$</span> git clone <span class="t-i">https://github.com/ahao430/DailyKeeper.git</span>
+<span class="t-c">$</span> cd DailyKeeper &amp;&amp; cp deploy/.env.example deploy/.env
+<span class="t-c">$</span> docker compose -f deploy/docker-compose.yml up -d --build
+
+<span class="t-g">✔</span> api             <span class="t-g">healthy</span>
+<span class="t-g">✔</span> scheduler       <span class="t-c">running</span>
+<span class="t-g">✔</span> worker          <span class="t-c">running</span>
+<span class="t-g">✔</span> browser-worker  <span class="t-g">healthy</span>
+
+<span class="t-m">控制台 → </span><span class="t-c">http://localhost:8080</span><span class="t-m"> · API 文档 → </span><span class="t-c">http://localhost:8000/docs</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 3. FEATURES ===== -->
+<section id="features">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">功能</span>
+      <h2>让每个账号保持活跃所需的一切</h2>
+      <p class="sub">十项能力，一个自托管控制台。</p>
+    </div>
+    <div class="features-grid">
+      <div class="card feat">
+        <div class="feat-emoji">🗂</div>
+        <h3>多平台管理</h3>
+        <p>统一管理来自不同平台的账号与服务。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">⏰</div>
+        <h3>每日任务自动化</h3>
+        <p>自动执行每日签到、福利领取与例行操作。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">🔐</div>
+        <h3>账号凭据管理</h3>
+        <p>凭据 AES-GCM 加密存储，逐账号跟踪登录状态。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">📈</div>
+        <h3>资源监控</h3>
+        <p>余额、积分、额度与用量，附趋势图表。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">🧩</div>
+        <h3>可扩展插件体系</h3>
+        <p>统一插件 SDK，新增平台无需改动核心引擎。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">🌐</div>
+        <h3>浏览器自动化</h3>
+        <p>Playwright 浏览器 Worker，按账号持久化会话。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">🖥</div>
+        <h3>本地 Agent</h3>
+        <p>拉取式 dk-agent，把自动化延伸到桌面应用。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">🤖</div>
+        <h3>MCP Server</h3>
+        <p>向 AI 助手开放状态查询、任务触发与余额查询（dk-mcp）。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">🔔</div>
+        <h3>通知推送</h3>
+        <p>Bark / Gotify / Webhook，按事件独立开关。</p>
+      </div>
+      <div class="card feat">
+        <div class="feat-emoji">👥</div>
+        <h3>多用户管理</h3>
+        <p>多管理员账号，停用后即时失效会话。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 4. EXECUTION LANES ===== -->
+<section id="lanes">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">执行线</span>
+      <h2>三条执行线，同一个任务引擎</h2>
+      <p class="sub">每次执行都会自动路由到合适的运行端。</p>
+    </div>
+    <div class="lanes-grid">
+      <div class="card lane lane-http">
+        <span class="lane-badge">HTTP 执行线</span>
+        <p class="lane-desc">API 任务由服务器 Worker 执行，经插件 HTTP 客户端调用。</p>
+        <ul class="bullets">
+          <li>数据库队列 + 乐观锁认领</li>
+          <li>按业务日期幂等去重</li>
+          <li>超时控制 + 退避重试</li>
+        </ul>
+      </div>
+      <div class="card lane lane-browser">
+        <span class="lane-badge">浏览器执行线</span>
+        <p class="lane-desc">Playwright + Chromium。</p>
+        <ul class="bullets">
+          <li>按账号持久化登录态 —— 登录一次，长期复用</li>
+          <li>真实浏览器登录，完成 M-Team 每日保活</li>
+          <li>未部署浏览器 Worker 时自动进入 NEEDS_ACTION 守卫</li>
+        </ul>
+      </div>
+      <div class="card lane lane-agent">
+        <span class="lane-badge">Agent 执行线</span>
+        <p class="lane-desc">dk-agent 拉取式协议。</p>
+        <ul class="bullets">
+          <li>心跳 / 认领 / 拉取上下文 / 回传结果</li>
+          <li>插件运行在用户自己的环境里</li>
+          <li>一次性令牌，可轮换、可撤销</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 5. QUICK START ===== -->
+<section id="quick-start">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">快速开始</span>
+      <h2>四条命令完成部署</h2>
+      <p class="sub">一份 Docker Compose 文件，四个协同进程。</p>
+    </div>
+    <div class="steps">
+      <div class="card step">
+        <div class="step-num">1</div>
+        <h3>部署</h3>
+        <p>一份 compose 文件拉起四个进程：api / scheduler / worker / browser-worker。</p>
+      </div>
+      <div class="card step">
+        <div class="step-num">2</div>
+        <h3>配置</h3>
+        <p>添加平台实例与账号；凭据 AES-GCM 加密落盘。</p>
+      </div>
+      <div class="card step">
+        <div class="step-num">3</div>
+        <h3>自动化</h3>
+        <p>创建每日定时任务，立即执行一次，查看执行记录与资源趋势。</p>
+      </div>
+    </div>
+<pre class="codeblock">git clone <span class="t-i">https://github.com/ahao430/DailyKeeper.git</span>
+cd DailyKeeper
+cp deploy/.env.example deploy/.env   <span class="t-g"># 务必修改 SECRET_KEY！</span>
+docker compose -f deploy/docker-compose.yml up -d --build
+<span class="t-m"># 控制台：</span><span class="t-c">http://localhost:8080</span><span class="t-m"> · API 文档：</span><span class="t-c">http://localhost:8000/docs</span></pre>
+  </div>
+</section>
+
+<!-- ===== 6. PLUGINS ===== -->
+<section id="plugins">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">官方插件</span>
+      <h2>官方适配插件开箱即用</h2>
+      <p class="sub">官方插件经 entry points 注册；接入新平台无需改动任务引擎。</p>
+    </div>
+    <div class="chips">
+      <div class="card chip">
+        <code>demo</code>
+        <p>引擎闭环测试</p>
+      </div>
+      <div class="card chip">
+        <code>newapi</code>
+        <p>签到与额度查询</p>
+      </div>
+      <div class="card chip">
+        <code>mteam</code>
+        <p>浏览器 TOTP 登录保活</p>
+      </div>
+      <div class="card chip">
+        <code>nexusphp</code>
+        <p>PT 站签到与数据采集</p>
+      </div>
+    </div>
+    <a class="card plugin-cta" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/PLUGIN_SDK.md" target="_blank" rel="noopener">编写你自己的插件 <span class="acc">→</span> 插件 SDK 指南</a>
+  </div>
+</section>
+
+<!-- ===== 7. DOCS ===== -->
+<section id="docs">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">文档</span>
+      <h2>深入阅读文档</h2>
+    </div>
+    <div class="docs-grid">
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/PRD.md" target="_blank" rel="noopener">
+        <h3>PRD <span class="doc-arrow">→</span></h3>
+        <p>产品需求与功能边界</p>
+      </a>
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noopener">
+        <h3>系统架构 <span class="doc-arrow">→</span></h3>
+        <p>模块边界与执行流程</p>
+      </a>
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/PLUGIN_SDK.md" target="_blank" rel="noopener">
+        <h3>插件 SDK <span class="doc-arrow">→</span></h3>
+        <p>开发你自己的平台插件</p>
+      </a>
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/DATABASE.md" target="_blank" rel="noopener">
+        <h3>数据库设计 <span class="doc-arrow">→</span></h3>
+        <p>表结构与关系</p>
+      </a>
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/API.md" target="_blank" rel="noopener">
+        <h3>API 参考 <span class="doc-arrow">→</span></h3>
+        <p>REST 接口说明</p>
+      </a>
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/DEPLOYMENT.md" target="_blank" rel="noopener">
+        <h3>部署指南 <span class="doc-arrow">→</span></h3>
+        <p>Docker Compose 部署</p>
+      </a>
+      <a class="card doc-card" href="https://github.com/ahao430/DailyKeeper/blob/main/docs/MCP.md" target="_blank" rel="noopener">
+        <h3>MCP 集成 <span class="doc-arrow">→</span></h3>
+        <p>AI 助手接入</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 8. FOOTER ===== -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>DailyKeeper —— 一个平台，搞定所有每日任务。</div>
+    <div><a href="https://github.com/ahao430/DailyKeeper" target="_blank" rel="noopener">GitHub</a> · <a href="https://github.com/ahao430/DailyKeeper/blob/main/LICENSE" target="_blank" rel="noopener">MIT 许可证</a> · © 2026</div>
+  </div>
+</footer>
+
+</body>
+</html>
