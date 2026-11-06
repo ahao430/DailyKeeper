@@ -105,6 +105,70 @@
     </el-card>
 
     <!-- 新增 / 编辑平台 -->
+    <el-dialog
+      v-model="platformDialogVisible"
+      :title="platformEditing ? '编辑平台' : '新增平台'"
+      width="640px"
+      destroy-on-close
+    >
+      <el-form
+        ref="platformFormRef"
+        :model="platformForm"
+        :rules="platformRules"
+        label-width="110px"
+      >
+        <el-form-item v-if="!platformEditing" label="平台类型" prop="platform_id">
+          <el-select
+            v-model="platformForm.platform_id"
+            placeholder="请选择平台类型"
+            style="width: 100%"
+            @change="handlePluginChange"
+          >
+            <el-option
+              v-for="plugin in plugins"
+              :key="plugin.plugin_id"
+              :label="plugin.plugin_name"
+              :value="plugin.plugin_id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-else label="平台类型">
+          <el-input :model-value="platformEditing.platform_name" disabled />
+        </el-form-item>
+        <el-form-item label="实例名称" prop="name">
+          <el-input v-model="platformForm.name" placeholder="请输入实例名称" />
+        </el-form-item>
+        <el-form-item label="站点地址" prop="base_url">
+          <el-input v-model="platformForm.base_url" placeholder="https://example.com（可选）" />
+        </el-form-item>
+        <el-form-item label="时区" prop="timezone">
+          <el-select v-model="platformForm.timezone" style="width: 100%" filterable>
+            <el-option v-for="zone in TIMEZONES" :key="zone" :label="zone" :value="zone" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input
+            v-model="platformForm.description"
+            type="textarea"
+            :rows="2"
+            placeholder="可选备注"
+          />
+        </el-form-item>
+        <template v-if="activePlatformSchema.length">
+          <el-divider content-position="left">平台配置</el-divider>
+          <DynamicForm
+            :schema="activePlatformSchema"
+            :model-value="platformForm.config"
+            prefix="config"
+            @update:model-value="platformForm.config = $event"
+          />
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="platformDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="platformSaving" @click="submitPlatform">保存</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 添加 / 编辑账号 -->
     <el-dialog

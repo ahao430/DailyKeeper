@@ -188,7 +188,7 @@ class MTeamPlugin(PlatformPlugin):
             label="两步验证密钥",
             type="secret",
             required=False,
-            help="开启两步验证的账号必填；未开启可留空",
+            help="即 totp_secret（Base32 字符串）。开启两步验证的账号必填；未开启可留空",
         ),
         FieldDef(
             name="api_key",
