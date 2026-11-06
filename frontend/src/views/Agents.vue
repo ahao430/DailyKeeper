@@ -8,6 +8,14 @@
       </div>
     </div>
 
+    <el-alert
+      class="agent-guide"
+      type="info"
+      show-icon
+      :closable="false"
+      title="执行端（dk-agent）是跑在你自己电脑上的任务执行程序"
+      description="它把任务延伸到服务器到不了的地方：本地桌面应用、本机浏览器登录态等。拉取式工作——Agent 主动连服务器领任务，服务器不访问你的电脑，家庭网络 NAT 后面即可运行。只有插件声明 requires_agent 的任务才会派发给它（如演示平台的 agent_probe），普通 HTTP/浏览器任务不需要执行端。"
+    />
     <el-card shadow="never">
       <el-table v-loading="loading" :data="agents" row-key="id">
         <el-table-column prop="name" label="名称" min-width="150" show-overflow-tooltip />
@@ -284,6 +292,10 @@ onMounted(loadAgents);
   margin: 0;
   font-size: 20px;
   color: var(--el-text-color-primary);
+}
+
+.agent-guide {
+  margin-bottom: 16px;
 }
 
 .form-help {
