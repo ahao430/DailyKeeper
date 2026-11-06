@@ -25,7 +25,7 @@ const router = createRouter({
           path: "platforms",
           name: "platforms",
           component: () => import("../views/Platforms.vue"),
-          meta: { title: "平台管理" },
+          meta: { title: "平台与账号" },
         },
         {
           path: "registry",

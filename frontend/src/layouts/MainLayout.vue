@@ -12,7 +12,7 @@
         </el-menu-item>
         <el-menu-item index="/platforms">
           <el-icon><Platform /></el-icon>
-          <span>平台管理</span>
+          <span>平台与账号</span>
         </el-menu-item>
         <el-menu-item index="/registry">
           <el-icon><Box /></el-icon>

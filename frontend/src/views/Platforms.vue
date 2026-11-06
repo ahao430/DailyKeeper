@@ -1,7 +1,7 @@
 <template>
   <div class="platforms-page">
     <div class="page-header">
-      <h2 class="page-title">平台管理</h2>
+      <h2 class="page-title">平台与账号</h2>
       <div class="page-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadAll">刷新</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreatePlatform">新增平台</el-button>
@@ -34,7 +34,7 @@
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="openEditPlatform(row)">编辑</el-button>
-            <el-button link type="primary" @click.stop="selectInstance(row)">账号</el-button>
+            <el-button link type="primary" @click.stop="selectInstance(row)">管理账号</el-button>
             <el-button link type="danger" @click.stop="removeInstance(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -106,7 +106,10 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="该平台实例暂无账号" :image-size="80" />
+          <el-empty
+            description="该平台实例还没有账号。账号是登录凭据（用户名/密码/Cookie 等），添加后才能创建定时任务。"
+            :image-size="90"
+          />
         </template>
       </el-table>
     </el-card>
@@ -561,7 +564,8 @@ async function submitPlatform(): Promise<void> {
         enabled: true,
       });
       instances.value.push(created);
-      ElMessage.success("平台实例已创建");
+      selectInstance(created);
+      ElMessage.success("平台实例已创建，请在下方添加账号并填写登录凭据");
     }
     platformDialogVisible.value = false;
   } catch (error) {

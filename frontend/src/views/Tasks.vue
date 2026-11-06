@@ -202,7 +202,8 @@ const filterAccountId = ref<number | undefined>(undefined);
 const runningId = ref<number | null>(null);
 
 function accountLabel(account: Account): string {
-  return account.display_name ? `${account.name}（${account.display_name}）` : account.name;
+  const name = account.display_name ? `${account.name}（${account.display_name}）` : account.name;
+  return `${account.instance_name} · ${name}`;
 }
 
 function formatTime(value: string | null): string {
