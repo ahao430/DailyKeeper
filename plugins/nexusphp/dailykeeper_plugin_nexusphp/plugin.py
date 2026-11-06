@@ -63,6 +63,15 @@ class NexusPHPPlugin(PlatformPlugin):
             default=_DEFAULT_USER_AGENT,
         ),
     ]
+    credential_schema: ClassVar[list] = [
+        FieldDef(
+            name="cookie",
+            label="Cookie",
+            type="secret",
+            required=True,
+            help="浏览器登录后的完整 Cookie",
+        ),
+    ]
     account_schema: ClassVar[list] = []
     task_definitions: ClassVar[list] = [
         TaskDefinition(name="daily_checkin", description="每日签到", default_time="08:30"),

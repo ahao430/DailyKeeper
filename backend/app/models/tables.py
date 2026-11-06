@@ -53,6 +53,7 @@ class Platform(Base):
     config_schema: Mapped[list] = mapped_column(JSON, default=list)
     account_schema: Mapped[list] = mapped_column(JSON, default=list)
     task_definitions: Mapped[list] = mapped_column(JSON, default=list)
+    credential_schema: Mapped[list | None] = mapped_column(JSON, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     source: Mapped[str] = mapped_column(String(32), default="entry_point")
 

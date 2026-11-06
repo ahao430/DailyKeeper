@@ -51,6 +51,10 @@ class HelloPlugin(PlatformPlugin):
     account_schema = [
         FieldDef(name="cookie", label="Cookie", type="secret", required=True),
     ]
+    credential_schema = [
+        FieldDef(name="cookie", label="Cookie", type="secret", required=True,
+                 help="浏览器登录后的完整 Cookie"),
+    ]
     task_definitions = [
         TaskDefinition(name="daily_checkin", description="每日签到",
                        default_time="08:30", produces_resources=True),
@@ -109,7 +113,7 @@ class HelloPlugin(PlatformPlugin):
 
 ## 四、FieldDef 字段定义
 
-`FieldDef` 描述实例配置（`config_schema`）与账号级配置（`account_schema`），Dashboard 会据此动态渲染表单。
+`FieldDef` 描述实例配置（`config_schema`）、账号级配置（`account_schema`）与登录凭据字段（`credential_schema`），Dashboard 会据此动态渲染表单：添加账号时凭据区按 `credential_schema` 渲染命名字段（用户名/密码等），同时保留自定义键值对用于额外字段；`options` 项支持字符串或 `{"value": ..., "label": ...}`（值与展示文案不同时用后者，如英文枚举配中文标签）。
 
 | 属性 | 类型 | 说明 |
 | --- | --- | --- |

@@ -36,6 +36,7 @@ export interface PluginManifest {
   auth_types: string[];
   config_schema: FieldDef[];
   account_schema: FieldDef[];
+  credential_schema: FieldDef[];
   task_definitions: TaskDefinition[];
   requires_browser_any: boolean;
   enabled: boolean;

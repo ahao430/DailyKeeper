@@ -14,13 +14,13 @@ from dailykeeper_sdk import (
 )
 
 _BEHAVIORS = [
-    "success",
-    "auth_expired",
-    "fail_retryable",
-    "fail_fatal",
-    "needs_action",
-    "skip",
-    "rate_limited",
+    {"value": "success", "label": "成功"},
+    {"value": "auth_expired", "label": "登录失效"},
+    {"value": "fail_retryable", "label": "失败（可重试）"},
+    {"value": "fail_fatal", "label": "失败（不可重试）"},
+    {"value": "needs_action", "label": "需要人工处理"},
+    {"value": "skip", "label": "跳过（今日已签）"},
+    {"value": "rate_limited", "label": "触发限流"},
 ]
 
 

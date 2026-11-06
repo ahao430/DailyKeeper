@@ -9,20 +9,81 @@
     </div>
 
     <el-card shadow="never">
-      <el-table
-        v-loading="loading"
-        :data="instances"
-        row-key="id"
-        highlight-current-row
-        @row-click="handleRowClick"
-      >
+      <el-table v-loading="loading" :data="instances" row-key="id">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="expand-accounts">
+              <div class="expand-header">
+                <span class="expand-title">账号（{{ accountsOf(row.id).length }}）</span>
+                <el-button
+                  size="small"
+                  type="primary"
+                  :icon="Plus"
+                  @click="openCreateAccount(row)"
+                >
+                  添加账号
+                </el-button>
+              </div>
+              <el-table :data="accountsOf(row.id)" size="small" row-key="id">
+                <el-table-column prop="name" label="账号名" min-width="130" show-overflow-tooltip />
+                <el-table-column prop="display_name" label="显示名称" min-width="120" show-overflow-tooltip>
+                  <template #default="{ row: account }">{{ account.display_name || "-" }}</template>
+                </el-table-column>
+                <el-table-column label="状态" width="100" align="center">
+                  <template #default="{ row: account }">
+                    <el-tag :type="statusTagType(account.status)" size="small">{{ statusLabel(account.status) }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="启用" width="70" align="center">
+                  <template #default="{ row: account }">
+                    <el-switch
+                      :model-value="account.enabled"
+                      @change="(value: string | number | boolean) => toggleAccount(account, Boolean(value))"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column label="最近签到" width="110" align="center">
+                  <template #default="{ row: account }">{{ account.last_checkin_date || "-" }}</template>
+                </el-table-column>
+                <el-table-column label="凭据" width="130" align="center">
+                  <template #default="{ row: account }">
+                    <el-tag v-if="account.has_credential" type="success" size="small">
+                      {{ credentialLabel(account.credential_kind) }}
+                    </el-tag>
+                    <el-tag v-else type="info" size="small">未设置</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="160">
+                  <template #default="{ row: account }">
+                    <el-button
+                      link
+                      type="primary"
+                      :loading="checkingId === account.id"
+                      @click="runCheck(account)"
+                    >
+                      检测
+                    </el-button>
+                    <el-button link type="primary" @click="openEditAccount(account)">编辑</el-button>
+                    <el-button link type="danger" @click="removeAccount(account)">删除</el-button>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <el-empty
+                    description="还没有账号。账号是登录凭据（用户名/密码/Cookie 等），添加后才能创建定时任务。"
+                    :image-size="70"
+                  />
+                </template>
+              </el-table>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="name" label="实例名称" min-width="150" show-overflow-tooltip />
         <el-table-column prop="platform_name" label="平台类型" min-width="130" />
         <el-table-column prop="base_url" label="站点地址" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.base_url || "-" }}</template>
         </el-table-column>
-        <el-table-column prop="timezone" label="时区" min-width="140" />
-        <el-table-column label="启用" width="80" align="center">
+        <el-table-column prop="timezone" label="时区" min-width="130" />
+        <el-table-column label="启用" width="70" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="row.enabled"
@@ -30,11 +91,10 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="account_count" label="账号数" width="90" align="center" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="account_count" label="账号数" width="80" align="center" />
+        <el-table-column label="操作" width="130" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="openEditPlatform(row)">编辑</el-button>
-            <el-button link type="primary" @click.stop="selectInstance(row)">管理账号</el-button>
             <el-button link type="danger" @click.stop="removeInstance(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -44,141 +104,7 @@
       </el-table>
     </el-card>
 
-    <el-card v-if="selectedInstance" shadow="never" class="accounts-card">
-      <template #header>
-        <div class="accounts-header">
-          <div class="accounts-title">
-            <span>账号管理</span>
-            <el-tag size="small" type="info">{{ selectedInstance.name }}</el-tag>
-            <el-tag size="small">{{ selectedInstance.platform_name }}</el-tag>
-          </div>
-          <div>
-            <el-button size="small" :icon="Refresh" :loading="accountsLoading" @click="loadAccounts">
-              刷新账号
-            </el-button>
-            <el-button type="primary" size="small" :icon="Plus" @click="openCreateAccount">
-              添加账号
-            </el-button>
-          </div>
-        </div>
-      </template>
-      <el-table v-loading="accountsLoading" :data="instanceAccounts" row-key="id">
-        <el-table-column prop="name" label="账号名" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="display_name" label="显示名称" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.display_name || "-" }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="110" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="启用" width="80" align="center">
-          <template #default="{ row }">
-            <el-switch
-              :model-value="row.enabled"
-              @change="(value: string | number | boolean) => toggleAccount(row, Boolean(value))"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column label="最近签到" width="120" align="center">
-          <template #default="{ row }">{{ row.last_checkin_date || "-" }}</template>
-        </el-table-column>
-        <el-table-column label="凭据" width="140" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.has_credential" type="success" size="small">
-              {{ credentialLabel(row.credential_kind) }}
-            </el-tag>
-            <el-tag v-else type="info" size="small">未设置</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              link
-              type="primary"
-              :loading="checkingId === row.id"
-              @click="runCheck(row)"
-            >
-              检测
-            </el-button>
-            <el-button link type="primary" @click="openEditAccount(row)">编辑</el-button>
-            <el-button link type="danger" @click="removeAccount(row)">删除</el-button>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty
-            description="该平台实例还没有账号。账号是登录凭据（用户名/密码/Cookie 等），添加后才能创建定时任务。"
-            :image-size="90"
-          />
-        </template>
-      </el-table>
-    </el-card>
-
     <!-- 新增 / 编辑平台 -->
-    <el-dialog
-      v-model="platformDialogVisible"
-      :title="platformEditing ? '编辑平台' : '新增平台'"
-      width="640px"
-      destroy-on-close
-    >
-      <el-form
-        ref="platformFormRef"
-        :model="platformForm"
-        :rules="platformRules"
-        label-width="110px"
-      >
-        <el-form-item v-if="!platformEditing" label="平台类型" prop="platform_id">
-          <el-select
-            v-model="platformForm.platform_id"
-            placeholder="请选择平台类型"
-            style="width: 100%"
-            @change="handlePluginChange"
-          >
-            <el-option
-              v-for="plugin in plugins"
-              :key="plugin.plugin_id"
-              :label="plugin.plugin_name"
-              :value="plugin.plugin_id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-else label="平台类型">
-          <el-input :model-value="platformEditing.platform_name" disabled />
-        </el-form-item>
-        <el-form-item label="实例名称" prop="name">
-          <el-input v-model="platformForm.name" placeholder="请输入实例名称" />
-        </el-form-item>
-        <el-form-item label="站点地址" prop="base_url">
-          <el-input v-model="platformForm.base_url" placeholder="https://example.com（可选）" />
-        </el-form-item>
-        <el-form-item label="时区" prop="timezone">
-          <el-select v-model="platformForm.timezone" style="width: 100%" filterable>
-            <el-option v-for="zone in TIMEZONES" :key="zone" :label="zone" :value="zone" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input
-            v-model="platformForm.description"
-            type="textarea"
-            :rows="2"
-            placeholder="可选备注"
-          />
-        </el-form-item>
-        <template v-if="activePlatformSchema.length">
-          <el-divider content-position="left">平台配置</el-divider>
-          <DynamicForm
-            :schema="activePlatformSchema"
-            :model-value="platformForm.config"
-            prefix="config"
-            @update:model-value="platformForm.config = $event"
-          />
-        </template>
-      </el-form>
-      <template #footer>
-        <el-button @click="platformDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="platformSaving" @click="submitPlatform">保存</el-button>
-      </template>
-    </el-dialog>
 
     <!-- 添加 / 编辑账号 -->
     <el-dialog
@@ -219,14 +145,24 @@
         <el-form-item label="凭据类型" prop="credential_kind">
           <el-select v-model="accountForm.credential_kind" style="width: 100%">
             <el-option
-              v-for="kind in CREDENTIAL_KINDS"
+              v-for="kind in credentialKindOptions"
               :key="kind.value"
               :label="kind.label"
               :value="kind.value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="凭据内容">
+        <template v-if="activeCredentialSchema.length">
+          <el-form-item label="凭据字段">
+            <DynamicForm
+              :schema="activeCredentialSchema"
+              :model-value="accountForm.credential_values"
+              prefix="credential"
+              @update:model-value="accountForm.credential_values = $event"
+            />
+          </el-form-item>
+        </template>
+        <el-form-item :label="activeCredentialSchema.length ? '自定义字段' : '凭据内容'">
           <div class="kv-editor">
             <div
               v-for="(row, index) in accountForm.credential_rows"
@@ -360,25 +296,23 @@ const loading = ref(false);
 const plugins = ref<PluginManifest[]>([]);
 const instances = ref<PlatformInstance[]>([]);
 const accounts = ref<Account[]>([]);
-const accountsLoading = ref(false);
-const selectedInstance = ref<PlatformInstance | null>(null);
 const checkingId = ref<number | null>(null);
 
-const instanceAccounts = computed(() =>
-  accounts.value.filter((account) => account.instance_id === selectedInstance.value?.id),
-);
+function accountsOf(instanceId: number): Account[] {
+  return accounts.value.filter((account) => account.instance_id === instanceId);
+}
 
 async function loadAll(): Promise<void> {
   loading.value = true;
   try {
-    const [pluginList, platformList] = await Promise.all([listPlugins(), listPlatforms()]);
+    const [pluginList, platformList, accountList] = await Promise.all([
+      listPlugins(),
+      listPlatforms(),
+      listAccounts(),
+    ]);
     plugins.value = pluginList;
     instances.value = platformList;
-    if (selectedInstance.value) {
-      const current = platformList.find((item) => item.id === selectedInstance.value?.id);
-      selectedInstance.value = current ?? null;
-      await loadAccounts();
-    }
+    accounts.value = accountList;
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "加载平台数据失败"));
   } finally {
@@ -386,25 +320,11 @@ async function loadAll(): Promise<void> {
   }
 }
 
-async function loadAccounts(): Promise<void> {
-  accountsLoading.value = true;
+async function refreshAccounts(): Promise<void> {
   try {
     accounts.value = await listAccounts();
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "加载账号数据失败"));
-  } finally {
-    accountsLoading.value = false;
-  }
-}
-
-function handleRowClick(row: PlatformInstance): void {
-  selectInstance(row);
-}
-
-function selectInstance(row: PlatformInstance): void {
-  selectedInstance.value = row;
-  if (!accounts.value.length) {
-    void loadAccounts();
   }
 }
 
@@ -427,9 +347,6 @@ async function toggleInstance(row: PlatformInstance, value: boolean): Promise<vo
     if (index >= 0) {
       instances.value[index] = { ...instances.value[index], ...updated };
     }
-    if (selectedInstance.value?.id === row.id) {
-      selectedInstance.value = { ...selectedInstance.value, ...updated };
-    }
     ElMessage.success(value ? "已启用" : "已停用");
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "更新平台状态失败"));
@@ -447,7 +364,7 @@ async function toggleAccount(row: Account, value: boolean): Promise<void> {
     ElMessage.success(value ? "已启用" : "已停用");
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "更新账号状态失败"));
-    await loadAccounts();
+    await refreshAccounts();
   }
 }
 
@@ -463,9 +380,6 @@ async function removeInstance(row: PlatformInstance): Promise<void> {
   try {
     await deletePlatform(row.id);
     ElMessage.success("平台实例已删除");
-    if (selectedInstance.value?.id === row.id) {
-      selectedInstance.value = null;
-    }
     await loadAll();
   } catch (error) {
     // 409 等后端校验失败时展示 detail（如“该平台实例下仍有账号，请先删除账号”）
@@ -549,9 +463,6 @@ async function submitPlatform(): Promise<void> {
       if (index >= 0) {
         instances.value[index] = updated;
       }
-      if (selectedInstance.value?.id === updated.id) {
-        selectedInstance.value = updated;
-      }
       ElMessage.success("平台实例已更新");
     } else {
       const created = await createPlatform({
@@ -564,8 +475,7 @@ async function submitPlatform(): Promise<void> {
         enabled: true,
       });
       instances.value.push(created);
-      selectInstance(created);
-      ElMessage.success("平台实例已创建，请在下方添加账号并填写登录凭据");
+      ElMessage.success("平台实例已创建，展开该行即可添加账号");
     }
     platformDialogVisible.value = false;
   } catch (error) {
@@ -588,12 +498,14 @@ const accountDialogVisible = ref(false);
 const accountSaving = ref(false);
 const accountFormRef = ref<FormInstance>();
 const accountEditing = ref<Account | null>(null);
+const accountInstanceId = ref<number | null>(null);
 const accountForm = reactive({
   name: "",
   display_name: "",
   notes: "",
   config: {} as Record<string, unknown>,
   credential_kind: "cookie",
+  credential_values: {} as Record<string, unknown>,
   credential_rows: [{ key: "", value: "" }] as CredentialRow[],
 });
 
@@ -603,11 +515,23 @@ const accountRules = computed<FormRules>(() => ({
 }));
 
 const activeAccountPlugin = computed<PluginManifest | null>(() => {
-  const platformId = accountEditing.value?.platform_id ?? selectedInstance.value?.platform_id;
+  const platformId =
+    accountEditing.value?.platform_id ??
+    instances.value.find((item) => item.id === accountInstanceId.value)?.platform_id;
   return plugins.value.find((plugin) => plugin.plugin_id === platformId) ?? null;
 });
 
 const activeAccountSchema = computed<FieldDef[]>(() => activeAccountPlugin.value?.account_schema ?? []);
+const activeCredentialSchema = computed<FieldDef[]>(
+  () => activeAccountPlugin.value?.credential_schema ?? [],
+);
+
+const credentialKindOptions = computed(() => {
+  const allowed = activeAccountPlugin.value?.auth_types ?? [];
+  const filtered = CREDENTIAL_KINDS.filter((kind) => allowed.includes(kind.value));
+  // 插件声明了未知类型（如 demo 的 "none"）或未声明时，回退全量列表避免下拉为空
+  return filtered.length ? filtered : CREDENTIAL_KINDS;
+});
 
 function isSecretKey(key: string): boolean {
   return /token|key|cookie|password|secret/i.test(key);
@@ -621,34 +545,41 @@ function removeCredentialRow(index: number): void {
   accountForm.credential_rows.splice(index, 1);
 }
 
-function openCreateAccount(): void {
-  if (!selectedInstance.value) {
-    ElMessage.warning("请先选择一个平台实例");
-    return;
-  }
+function openCreateAccount(instance: PlatformInstance): void {
+  accountInstanceId.value = instance.id;
   accountEditing.value = null;
   accountForm.name = "";
   accountForm.display_name = "";
   accountForm.notes = "";
   accountForm.config = buildFormDefaults(activeAccountSchema.value);
-  accountForm.credential_kind = "cookie";
+  accountForm.credential_kind = credentialKindOptions.value[0]?.value ?? "cookie";
+  accountForm.credential_values = buildFormDefaults(activeCredentialSchema.value);
   accountForm.credential_rows = [{ key: "", value: "" }];
   accountDialogVisible.value = true;
 }
 
 function openEditAccount(row: Account): void {
+  accountInstanceId.value = row.instance_id;
   accountEditing.value = row;
   accountForm.name = row.name;
   accountForm.display_name = row.display_name;
   accountForm.notes = row.notes;
   accountForm.config = { ...row.config };
-  accountForm.credential_kind = row.credential_kind ?? "cookie";
+  accountForm.credential_kind = row.credential_kind ?? credentialKindOptions.value[0]?.value ?? "cookie";
+  // 凭据明文不出后端，编辑时空值表示不修改
+  accountForm.credential_values = buildFormDefaults(activeCredentialSchema.value);
   accountForm.credential_rows = [{ key: "", value: "" }];
   accountDialogVisible.value = true;
 }
 
 function buildCredentialData(): Record<string, string> {
   const data: Record<string, string> = {};
+  for (const field of activeCredentialSchema.value) {
+    const value = accountForm.credential_values[field.name];
+    if (value !== undefined && value !== null && String(value) !== "") {
+      data[field.name] = String(value);
+    }
+  }
   for (const row of accountForm.credential_rows) {
     const key = row.key.trim();
     if (key) {
@@ -663,8 +594,8 @@ async function submitAccount(): Promise<void> {
   if (!valid) {
     return;
   }
-  if (!selectedInstance.value && !accountEditing.value) {
-    ElMessage.warning("请先选择一个平台实例");
+  if (!accountInstanceId.value && !accountEditing.value) {
+    ElMessage.warning("缺少账号所属的平台实例");
     return;
   }
   accountSaving.value = true;
@@ -687,7 +618,7 @@ async function submitAccount(): Promise<void> {
       ElMessage.success("账号已更新");
     } else {
       const created = await createAccount({
-        instance_id: selectedInstance.value!.id,
+        instance_id: accountInstanceId.value!,
         name: accountForm.name.trim(),
         display_name: accountForm.display_name,
         config: accountForm.config,
@@ -697,17 +628,12 @@ async function submitAccount(): Promise<void> {
       if (accountForm.notes) {
         await updateAccount(created.id, { notes: accountForm.notes });
       }
-      accounts.value.push({ ...created, notes: accountForm.notes });
+      await refreshAccounts();
       ElMessage.success("账号已创建");
     }
     accountDialogVisible.value = false;
     // 账号数量变化后刷新实例列表中的 account_count
-    const platformList = await listPlatforms();
-    instances.value = platformList;
-    if (selectedInstance.value) {
-      const current = platformList.find((item) => item.id === selectedInstance.value?.id);
-      selectedInstance.value = current ?? null;
-    }
+    instances.value = await listPlatforms();
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "保存账号失败"));
   } finally {
@@ -727,13 +653,8 @@ async function removeAccount(row: Account): Promise<void> {
   try {
     await deleteAccount(row.id);
     ElMessage.success("账号已删除");
-    await loadAccounts();
-    const platformList = await listPlatforms();
-    instances.value = platformList;
-    if (selectedInstance.value) {
-      const current = platformList.find((item) => item.id === selectedInstance.value?.id);
-      selectedInstance.value = current ?? null;
-    }
+    await refreshAccounts();
+    instances.value = await listPlatforms();
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, "删除账号失败"));
   }
@@ -811,25 +732,26 @@ onMounted(loadAll);
   color: var(--el-text-color-primary);
 }
 
-.accounts-card {
-  margin-top: 16px;
+.expand-accounts {
+  padding: 4px 12px 12px 48px;
 }
 
-.accounts-header {
+.expand-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.accounts-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.expand-title {
   font-weight: 600;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 .kv-editor {
   width: 100%;
+  display: block;
 }
 
 .kv-row {

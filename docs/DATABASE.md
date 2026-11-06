@@ -26,7 +26,7 @@
 已注册的平台插件，`id` 即 `plugin_id`（主键）。由服务启动时从插件注册表同步。
 
 - `id` (String(64), PK)、`name`、`version`、`description`
-- `auth_types` / `config_schema` / `account_schema` / `task_definitions` (JSON) — 插件声明的能力与表单 Schema
+- `auth_types` / `config_schema` / `account_schema` / `credential_schema` / `task_definitions` (JSON) — 插件声明的能力与表单 Schema
 - `enabled`、`source`（`entry_point`）
 
 ### platform_instances

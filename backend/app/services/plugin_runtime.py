@@ -38,6 +38,7 @@ async def load_plugins(session: AsyncSession) -> list[str]:
             "auth_types": list(manifest["auth_types"]),
             "config_schema": list(manifest["config_schema"]),
             "account_schema": list(manifest["account_schema"]),
+            "credential_schema": list(manifest["credential_schema"]),
             "task_definitions": list(manifest["task_definitions"]),
             "source": "entry_point",
         }

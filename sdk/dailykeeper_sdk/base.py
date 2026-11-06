@@ -12,7 +12,11 @@ from dailykeeper_sdk.result import TaskResult, TaskStatus
 
 @dataclass
 class FieldDef:
-    """One config field, rendered dynamically by the dashboard as a form field."""
+    """One config field, rendered dynamically by the dashboard as a form field.
+
+    ``options`` 项可以是字符串，也可以是 ``{"value": ..., "label": ...}``——
+    后者用于选项值与展示文案不同（如英文枚举配中文标签）的场景。
+    """
 
     name: str
     label: str
@@ -70,9 +74,10 @@ class PlatformPlugin(ABC):
     plugin_version: ClassVar[str] = "0.1.0"
     description: ClassVar[str] = ""
     auth_types: ClassVar[list] = ["cookie"]
-    config_schema: ClassVar[list] = []   # list[FieldDef]
-    account_schema: ClassVar[list] = []  # list[FieldDef]
-    task_definitions: ClassVar[list] = []  # list[TaskDefinition]
+    config_schema: ClassVar[list] = []        # list[FieldDef] — 实例级配置
+    account_schema: ClassVar[list] = []       # list[FieldDef] — 账号级配置
+    credential_schema: ClassVar[list] = []    # list[FieldDef] — 登录凭据字段（Dashboard 据此渲染命名表单）
+    task_definitions: ClassVar[list] = []     # list[TaskDefinition]
 
     def validate_config(self, config: dict) -> tuple[bool, str]:
         """Validate instance-level config; return (ok, error_message)."""
@@ -104,6 +109,7 @@ class PlatformPlugin(ABC):
             "auth_types": self.auth_types,
             "config_schema": [f.to_dict() for f in self.config_schema],
             "account_schema": [f.to_dict() for f in self.account_schema],
+            "credential_schema": [f.to_dict() for f in self.credential_schema],
             "task_definitions": [t.to_dict() for t in self.task_definitions],
             "requires_browser_any": any(t.requires_browser for t in self.task_definitions),
             "requires_agent_any": any(t.requires_agent for t in self.task_definitions),

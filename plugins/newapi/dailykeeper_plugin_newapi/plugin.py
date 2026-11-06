@@ -55,6 +55,22 @@ class NewApiPlugin(PlatformPlugin):
             help="多少 quota 等于 1 美元，NewAPI 默认 500000",
         ),
     ]
+    credential_schema: ClassVar[list] = [
+        FieldDef(
+            name="token",
+            label="系统访问令牌",
+            type="secret",
+            required=False,
+            help="个人设置生成的 System Access Token，二选一",
+        ),
+        FieldDef(
+            name="cookie",
+            label="Cookie",
+            type="secret",
+            required=False,
+            help="浏览器登录后的 Cookie，二选一",
+        ),
+    ]
     account_schema: ClassVar[list] = [
         FieldDef(
             name="api_user",

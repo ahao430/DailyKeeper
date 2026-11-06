@@ -128,6 +128,36 @@ class MTeamPlugin(PlatformPlugin):
             help="逗号分隔的候选 CSS 选择器，站点改版时可在实例配置中覆盖",
         ),
     ]
+    credential_schema: ClassVar[list] = [
+        FieldDef(
+            name="username",
+            label="用户名",
+            type="string",
+            required=True,
+            help="保活签到必填（浏览器自动登录用）",
+        ),
+        FieldDef(
+            name="password",
+            label="密码",
+            type="secret",
+            required=True,
+            help="保活签到必填（浏览器自动登录用）",
+        ),
+        FieldDef(
+            name="totp_secret",
+            label="两步验证密钥",
+            type="secret",
+            required=False,
+            help="开启两步验证的账号必填；未开启可留空",
+        ),
+        FieldDef(
+            name="api_key",
+            label="API Key",
+            type="secret",
+            required=False,
+            help="可选：控制台 → 实验室 → 存取令牌，配置后信息查询任务直接走 API",
+        ),
+    ]
     account_schema: ClassVar[list] = [
         FieldDef(
             name="login_hint",
