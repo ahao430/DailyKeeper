@@ -130,6 +130,18 @@ h1{font-size:52px;line-height:1.08;letter-spacing:-.025em;font-weight:800}
 .footer a{color:var(--muted);transition:color .15s}
 .footer a:hover{color:var(--text)}
 
+/* ===== dashboard shots ===== */
+.shot-hero{padding:0;overflow:hidden;margin-bottom:16px}
+.shot-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.25)}
+.shot-url{margin-left:6px;font-size:12px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.shot-hero img{display:block;width:100%;height:auto}
+.shot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.shot{padding:0;overflow:hidden}
+.shot img{display:block;width:100%;height:auto}
+.shot-cap{padding:12px 16px;font-size:13px;color:var(--muted);border-top:1px solid var(--border)}
+.page-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.page-chip{font-size:13px;color:var(--muted);border:1px solid var(--border);background:var(--card);border-radius:999px;padding:6px 14px}
+
 /* ===== responsive ===== */
 @media (max-width:900px){
   .hero{padding:56px 0 64px}
@@ -156,6 +168,7 @@ h1{font-size:52px;line-height:1.08;letter-spacing:-.025em;font-weight:800}
     <div class="nav-links">
       <a href="#features">功能</a>
       <a href="#lanes">执行线</a>
+      <a href="#dashboard">管理后台</a>
       <a href="#quick-start">快速开始</a>
       <a href="#plugins">插件</a>
       <a href="#docs">文档</a>
@@ -299,7 +312,49 @@ h1{font-size:52px;line-height:1.08;letter-spacing:-.025em;font-weight:800}
   </div>
 </section>
 
-<!-- ===== 5. QUICK START ===== -->
+<!-- ===== 5. DASHBOARD ===== -->
+<section id="dashboard">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">管理后台</span>
+      <h2>一个后台，看清所有账号与任务</h2>
+      <p class="sub">Vue 3 + Element Plus 构建的八页管理界面，开箱即用。以下均为真实界面截图。</p>
+    </div>
+    <div class="card shot-hero">
+      <div class="shot-bar">
+        <div class="dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div>
+        <span class="shot-url">localhost:5173/</span>
+      </div>
+      <img src="screenshots/dashboard.png" alt="总览页：账号统计、今日任务与成功数、系统信息">
+    </div>
+    <div class="shot-grid">
+      <div class="card shot">
+        <img src="screenshots/executions.png" alt="执行日志页：任务状态与结果">
+        <div class="shot-cap">执行日志 —— 状态、结果消息、执行线与重试，可按账号/任务过滤</div>
+      </div>
+      <div class="card shot">
+        <img src="screenshots/resources.png" alt="资源看板页：余额趋势图与汇总">
+        <div class="shot-cap">资源看板 —— 余额/积分/额度最新值与 ECharts 趋势图</div>
+      </div>
+      <div class="card shot">
+        <img src="screenshots/agents.png" alt="执行端管理页：本地 Agent 与在线状态">
+        <div class="shot-cap">执行端管理 —— Agent 注册、令牌一次性下发与轮换</div>
+      </div>
+    </div>
+    <div class="page-chips">
+      <span class="page-chip">总览</span>
+      <span class="page-chip">平台管理</span>
+      <span class="page-chip">任务中心</span>
+      <span class="page-chip">执行日志</span>
+      <span class="page-chip">资源看板</span>
+      <span class="page-chip">执行端管理</span>
+      <span class="page-chip">插件目录</span>
+      <span class="page-chip">系统设置</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 6. QUICK START ===== -->
 <section id="quick-start">
   <div class="container">
     <div class="section-head">

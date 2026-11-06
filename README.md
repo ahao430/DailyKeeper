@@ -22,6 +22,27 @@ DailyKeeper 是一个自托管的可扩展自动化平台：统一管理多平�
 - **通知推送** —— Bark / ntfy / Gotify / 邮件（SMTP）/ Webhook，按事件独立开关。
 - **自托管** —— 部署并管理属于你自己的自动化服务。
 
+## 管理后台
+
+内置 Vue 3 + Element Plus 管理后台，八个页面覆盖日常运维全部操作，以下均为真实界面截图：
+
+<p align="center"><img src="homepage/screenshots/dashboard.png" alt="总览页" width="860"></p>
+
+**总览** —— 平台账号数、今日任务/成功数、待处理异常、系统信息与调度心跳。
+
+<p align="center">
+  <img src="homepage/screenshots/executions.png" alt="执行日志" width="415">
+  <img src="homepage/screenshots/resources.png" alt="资源看板" width="415">
+</p>
+
+**执行日志** —— 每次任务的状态、结果消息、执行线（HTTP / 浏览器 / Agent）与重试次数，支持按账号/任务/状态过滤。**资源看板** —— 余额、积分、额度等资源最新值汇总与 ECharts 趋势图。
+
+<p align="center"><img src="homepage/screenshots/agents.png" alt="执行端管理" width="860"></p>
+
+**执行端管理** —— 本地 Agent 注册、令牌一次性下发/轮换/撤销与在线状态。
+
+其余页面：**平台管理**（多实例 + 插件动态表单）、**任务中心**（定时任务 CRUD 与立即执行）、**插件目录**（可信白名单 + 升级提示）、**系统设置**（通知渠道、事件开关、用户管理、修改密码）。
+
 ## 技术栈
 
 - 后端：Python 3.12+、FastAPI
