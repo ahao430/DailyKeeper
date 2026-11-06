@@ -39,6 +39,14 @@ _DEFAULT_TOTP_SELECTOR = (
     "input[placeholder*='驗證'], input[placeholder*='验证'], input[name='totp'], input[inputmode='numeric']"
 )
 
+# 站内签到入口（登录成功后自动签到；按钮文本繁简都做候选）
+_DEFAULT_CHECKIN_BUTTON_SELECTOR = (
+    "a:has-text('簽到'), button:has-text('簽到'), span:has-text('簽到'), "
+    "a:has-text('签到'), button:has-text('签到'), span:has-text('签到')"
+)
+_DEFAULT_CHECKIN_ALREADY_TEXT = "已簽到, 已签到, 已打卡"
+_DEFAULT_CHECKIN_SUCCESS_TEXT = "簽到成功, 签到成功, 獲得, 获得"
+
 
 def _b32_decode(secret: str) -> bytes:
     """Base32 解码，容忍空格、小写与缺失的 padding。"""
@@ -127,6 +135,38 @@ class MTeamPlugin(PlatformPlugin):
             default=_DEFAULT_TOTP_SELECTOR,
             help="逗号分隔的候选 CSS 选择器，站点改版时可在实例配置中覆盖",
         ),
+        FieldDef(
+            name="checkin_url",
+            label="签到页地址",
+            type="string",
+            required=False,
+            default="",
+            help="留空=登录落地页直接找签到按钮；填相对路径如 /checkin",
+        ),
+        FieldDef(
+            name="checkin_button_selector",
+            label="签到按钮选择器",
+            type="string",
+            required=False,
+            default=_DEFAULT_CHECKIN_BUTTON_SELECTOR,
+            help="逗号分隔的候选 CSS 选择器，站点改版时可在实例配置中覆盖",
+        ),
+        FieldDef(
+            name="checkin_already_text",
+            label="已签到文本",
+            type="string",
+            required=False,
+            default=_DEFAULT_CHECKIN_ALREADY_TEXT,
+            help="页面含这些文本之一即视为今日已签到（逗号分隔）",
+        ),
+        FieldDef(
+            name="checkin_success_text",
+            label="签到成功文本",
+            type="string",
+            required=False,
+            default=_DEFAULT_CHECKIN_SUCCESS_TEXT,
+            help="点击后页面出现这些文本之一即视为签到成功（逗号分隔）",
+        ),
     ]
     credential_schema: ClassVar[list] = [
         FieldDef(
@@ -173,7 +213,7 @@ class MTeamPlugin(PlatformPlugin):
         TaskDefinition(name="get_user_info", description="查询用户信息与魔力", default_time="09:00"),
         TaskDefinition(
             name="daily_checkin",
-            description="浏览器登录保活（防止 40 天未登录删号）",
+            description="登录保活 + 站内签到（防止 40 天未登录删号）",
             requires_browser=True,
             default_time="08:30",
             produces_resources=False,
@@ -211,7 +251,7 @@ class MTeamPlugin(PlatformPlugin):
     # ------------------------------------------------------------------
 
     async def _keepalive(self, context: TaskContext) -> TaskResult:
-        """浏览器登录保活：优先复用已持久化的会话，失效时用账号密码 + TOTP 登录。
+        """登录保活 + 站内签到：先建立/复用会话，再执行站内签到。
 
         登录成功的判据是捕获到 SPA 发出的 /api/member/profile 200 响应；
         execute 返回后浏览器 Worker 会自动持久化 storage state 供下次复用。
@@ -221,10 +261,26 @@ class MTeamPlugin(PlatformPlugin):
             return TaskResult.needs_action("浏览器会话未注入（应由浏览器 Worker 执行）")
 
         creds = context.credentials or {}
+        config = context.config or {}
+        result = await self._login_only(browser, creds, config)
+        if result.status != TaskStatus.SUCCESS:
+            return result
+
+        kind, msg = await self._do_checkin(browser.page, config)
+        data = {
+            "logged_in": True,
+            "method": (result.data or {}).get("method"),
+            "checkin": kind,
+        }
+        if kind == "done":
+            return TaskResult.ok("签到成功（登录保活完成）", data=data)
+        return TaskResult.ok(f"登录保活成功；{msg}", data=data)
+
+    async def _login_only(self, browser: Any, creds: dict, config: dict) -> TaskResult:
+        """浏览器登录保活：优先复用已持久化的会话，失效时用账号密码 + TOTP 登录。"""
         username = str(creds.get("username") or "")
         password = str(creds.get("password") or "")
         totp_secret = str(creds.get("totp_secret") or "")
-        config = context.config or {}
         site = str(config.get("site_url") or _DEFAULT_SITE_URL).rstrip("/")
         timeout_ms = int(float(config.get("login_timeout_seconds") or 60)) * 1000
         username_selector = str(config.get("username_selector") or _DEFAULT_USERNAME_SELECTOR)
@@ -327,6 +383,57 @@ class MTeamPlugin(PlatformPlugin):
             )
         except Exception as exc:  # noqa: BLE001 - 浏览器流程异常统一转失败
             return TaskResult.failed(f"保活执行异常: {exc}", retryable=True)
+
+    async def _do_checkin(self, page: Any, config: dict) -> tuple[str, str]:
+        """登录成功后执行站内签到。
+
+        返回 (checkin_kind, 描述)：done / already / not_found / clicked_unconfirmed / error。
+        找不到签到入口不判失败——保活目的已达成，结果在 data["checkin"] 里可观测。
+        """
+        site = str(config.get("site_url") or _DEFAULT_SITE_URL).rstrip("/")
+        timeout_ms = int(float(config.get("login_timeout_seconds") or 60)) * 1000
+        button_selector = str(
+            config.get("checkin_button_selector") or _DEFAULT_CHECKIN_BUTTON_SELECTOR
+        )
+
+        def _tokens(raw: object) -> list[str]:
+            return [t.strip() for t in str(raw).split(",") if t.strip()]
+
+        already_tokens = _tokens(config.get("checkin_already_text") or _DEFAULT_CHECKIN_ALREADY_TEXT)
+        success_tokens = _tokens(config.get("checkin_success_text") or _DEFAULT_CHECKIN_SUCCESS_TEXT)
+
+        async def _body_text() -> str:
+            try:
+                return str(await page.evaluate("() => document.body.innerText") or "")
+            except Exception:  # noqa: BLE001 - 取文本失败按空处理
+                return ""
+
+        try:
+            checkin_url = str(config.get("checkin_url") or "").strip()
+            if checkin_url:
+                target = checkin_url if checkin_url.startswith("http") else f"{site}/{checkin_url.lstrip('/')}"
+                await page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
+                await page.wait_for_timeout(3000)
+
+            body = await _body_text()
+            if any(token in body for token in already_tokens):
+                return "already", "站点提示今日已签到"
+
+            if not await self._try_click(page, button_selector, 8000):
+                return (
+                    "not_found",
+                    "未找到签到按钮（可在实例配置中调整 checkin_button_selector 或 checkin_url）",
+                )
+
+            await page.wait_for_timeout(3000)
+            body = await _body_text()
+            if any(token in body for token in success_tokens):
+                return "done", "签到成功"
+            if any(token in body for token in already_tokens):
+                return "already", "点击后站点提示今日已签到"
+            return "clicked_unconfirmed", "签到按钮已点击，但未检测到结果提示（请到站点确认）"
+        except Exception as exc:  # noqa: BLE001 - 签到阶段异常不推翻保活结果
+            return "error", f"签到阶段异常: {exc}"
 
     @staticmethod
     async def _try_fill(page: Any, selector_list: str, value: str, timeout_ms: int) -> bool:
