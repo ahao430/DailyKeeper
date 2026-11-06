@@ -207,8 +207,10 @@ async def delete_account(account_id: int, session: AsyncSession = Depends(get_db
     await session.execute(
         delete(TaskResultRecord).where(TaskResultRecord.execution_id.in_(execution_ids))
     )
-    await session.execute(delete(TaskExecution).where(TaskExecution.account_id == account_id))
+    # 先删资源快照：快照同时按 account_id 与 execution_id 引用，
+    # 若后删会在 SQLite 外键检查时阻塞 task_executions 的删除（500）
     await session.execute(delete(ResourceSnapshot).where(ResourceSnapshot.account_id == account_id))
+    await session.execute(delete(TaskExecution).where(TaskExecution.account_id == account_id))
     await session.execute(delete(ScheduledTask).where(ScheduledTask.account_id == account_id))
     await session.execute(delete(Credential).where(Credential.account_id == account_id))
     await session.delete(account)
